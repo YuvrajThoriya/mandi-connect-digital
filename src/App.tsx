@@ -25,15 +25,23 @@ import FarmerAuctions from "./pages/farmer/Auctions";
 import FarmerAuctionDetail from "./pages/farmer/AuctionDetail";
 import FarmerOrders from "./pages/farmer/Orders";
 import FarmerOrderDetail from "./pages/farmer/OrderDetail";
+
+// Trader Pages
+import TraderDashboard from "./pages/trader/Dashboard";
+import TraderProducts from "./pages/trader/Products";
+import TraderProductDetail from "./pages/trader/ProductDetail";
+import TraderAuctions from "./pages/trader/Auctions";
+import TraderAuctionDetail from "./pages/trader/AuctionDetail";
+import TraderOrders from "./pages/trader/Orders";
+import TraderOrderDetail from "./pages/trader/OrderDetail";
+
+// Common Pages
 import Appointments from "./pages/common/Appointments";
 import AppointmentAdd from "./pages/common/AppointmentAdd";
 import AppointmentDetail from "./pages/common/AppointmentDetail";
 import Notifications from "./pages/common/Notifications";
 import Profile from "./pages/common/Profile";
 import Settings from "./pages/common/Settings";
-
-// Trader Pages
-import TraderDashboard from "./pages/trader/Dashboard";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +72,12 @@ const App = () => (
               
               {/* Trader Routes */}
               <Route path="/trader/dashboard" element={<TraderDashboard />} />
+              <Route path="/trader/products" element={<TraderProducts />} />
+              <Route path="/products/:id" element={<TraderProductDetail />} />
+              <Route path="/trader/auctions" element={<TraderAuctions />} />
+              <Route path="/auctions/:id" element={<TraderAuctionDetail />} />
+              <Route path="/trader/orders" element={<TraderOrders />} />
+              <Route path="/trader/orders/:id" element={<TraderOrderDetail />} />
               
               {/* Common Routes */}
               <Route path="/appointments" element={<Appointments />} />
