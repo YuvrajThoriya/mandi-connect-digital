@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CATEGORIES, UNITS, getVarietiesByCategory } from "@/types";
 
 type ProductFormValues = {
   name: string;
@@ -42,13 +43,12 @@ type ProductFormValues = {
   location: string;
 };
 
-const CATEGORIES = ["Grains", "Vegetables", "Fruits", "Pulses", "Spices", "Other"];
-const UNITS = ["kg", "quintal", "ton", "pieces"];
-
 export default function FarmerProductAdd() {
   const navigate = useNavigate();
   const { addProduct, isLoading } = useData();
   const [images, setImages] = useState<string[]>(["/assets/product-placeholder.jpg"]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [varieties, setVarieties] = useState<{ label: string; value: string; }[]>([]);
   
   const form = useForm<ProductFormValues>({
     defaultValues: {
@@ -64,12 +64,21 @@ export default function FarmerProductAdd() {
     },
   });
   
+  // Handle category change to update varieties
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    const categoryVarieties = getVarietiesByCategory(category);
+    setVarieties(categoryVarieties);
+    form.setValue("variety", ""); // Reset variety when category changes
+  };
+  
   const onSubmit = async (data: ProductFormValues) => {
     try {
-      // Create product with images
+      // Create product with images and status
       const productData = {
         ...data,
         images: images,
+        status: 'pending' as const // Add the required status field
       };
       
       await addProduct(productData);
@@ -191,7 +200,10 @@ export default function FarmerProductAdd() {
                         <FormItem>
                           <FormLabel>Category</FormLabel>
                           <Select 
-                            onValueChange={field.onChange} 
+                            onValueChange={(value) => {
+                              field.onChange(value);
+                              handleCategoryChange(value);
+                            }} 
                             defaultValue={field.value}
                           >
                             <FormControl>
@@ -201,8 +213,8 @@ export default function FarmerProductAdd() {
                             </FormControl>
                             <SelectContent>
                               {CATEGORIES.map((category) => (
-                                <SelectItem key={category} value={category}>
-                                  {category}
+                                <SelectItem key={category.value} value={category.value}>
+                                  {category.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -219,9 +231,24 @@ export default function FarmerProductAdd() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Variety</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., Basmati, Roma" {...field} />
-                          </FormControl>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            disabled={!selectedCategory}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={selectedCategory ? "Select a variety" : "Select category first"} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {varieties.map((variety) => (
+                                <SelectItem key={variety.value} value={variety.value}>
+                                  {variety.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -266,8 +293,8 @@ export default function FarmerProductAdd() {
                             </FormControl>
                             <SelectContent>
                               {UNITS.map((unit) => (
-                                <SelectItem key={unit} value={unit}>
-                                  {unit}
+                                <SelectItem key={unit.value} value={unit.value}>
+                                  {unit.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
