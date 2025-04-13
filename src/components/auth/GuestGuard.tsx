@@ -18,7 +18,14 @@ export function GuestGuard({
 
   useEffect(() => {
     if (!isLoading && user) {
-      navigate(redirectTo, { replace: true });
+      // Redirect based on user role
+      if (user.role === 'farmer') {
+        navigate('/farmer/dashboard', { replace: true });
+      } else if (user.role === 'trader') {
+        navigate('/trader/dashboard', { replace: true });
+      } else {
+        navigate(redirectTo, { replace: true });
+      }
     }
   }, [user, isLoading, navigate, redirectTo]);
 
