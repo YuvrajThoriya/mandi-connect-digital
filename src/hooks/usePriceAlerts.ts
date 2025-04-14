@@ -68,7 +68,10 @@ export const usePriceAlerts = () => {
       if (createError) throw createError;
       
       if (data && data.length > 0) {
-        const newAlertTyped = data[0] as PriceAlert;
+        // First ensure it has the correct shape, then cast to PriceAlert
+        const typedData = ensureType<PriceAlert>(data);
+        const newAlertTyped = typedData[0];
+        
         setAlerts(prev => [newAlertTyped, ...prev]);
         
         toast({

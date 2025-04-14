@@ -57,13 +57,11 @@ export const queryTable = async <T>(
 // Type-safe insert operation
 export const insertIntoTable = async <T>(
   tableName: string,
-  data: any,
-  options = {}
+  data: any
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
-    // @ts-ignore - We need to support any options structure
-    const response = await table.insert(data, options);
+    const response = await table.insert(data);
     
     return {
       data: response.data ? ensureType<T>(response.data) : null,
@@ -89,13 +87,11 @@ export const updateTable = async <T>(
   tableName: string,
   data: any,
   matchColumn: string,
-  matchValue: string | number,
-  options = {}
+  matchValue: string | number
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
-    // @ts-ignore - We need to support any options structure
-    const response = await table.update(data, options).eq(matchColumn, matchValue);
+    const response = await table.update(data).eq(matchColumn, matchValue);
     
     return {
       data: response.data ? ensureType<T>(response.data) : null,
@@ -120,13 +116,11 @@ export const updateTable = async <T>(
 export const deleteFromTable = async <T>(
   tableName: string,
   matchColumn: string,
-  matchValue: string | number,
-  options = {}
+  matchValue: string | number
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
-    // @ts-ignore - We need to support any options structure
-    const response = await table.delete(options).eq(matchColumn, matchValue);
+    const response = await table.delete().eq(matchColumn, matchValue);
     
     return {
       data: response.data ? ensureType<T>(response.data) : null,
@@ -169,9 +163,14 @@ export function ensureObjectWithProperty<T extends object, K extends PropertyKey
 
 // Get categories helper
 export const getCategories = async () => {
-  const { data, error } = await queryTable('categories', table => table.select('*'));
-  if (data) {
-    return { data: data as any[], error };
+  try {
+    const response = await safeTable('categories').select('*');
+    if (response.data) {
+      return { data: response.data as any[], error: null };
+    }
+    return { data: [], error: response.error };
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    return { data: [], error };
   }
-  return { data: [], error };
 };

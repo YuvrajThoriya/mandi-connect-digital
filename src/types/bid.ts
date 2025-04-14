@@ -15,6 +15,11 @@ export interface Bid {
   previous_bid_amount: number | null;
   expires_at: string;
   auction_end_time: string;
+  product?: {
+    name: string;
+    image_url?: string | null;
+    farmer_id?: string;
+  };
 }
 
 export interface CreateBidDto {

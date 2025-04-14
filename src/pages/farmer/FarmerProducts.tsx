@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { queryTable } from '@/utils/supabaseUtils';
+import { queryTable, getCategories } from '@/utils/supabaseUtils';
 
 interface Product {
   id: string;
@@ -37,6 +38,8 @@ const FarmerProducts = () => {
     location: '',
     image_url: null,
     farmer_id: '',
+    farmer_name: '', // Added required field
+    quality: 'standard', // Added required field
   });
   const [categories, setCategories] = useState<string[]>([]);
   const { toast } = useToast();
@@ -71,7 +74,8 @@ const FarmerProducts = () => {
       const { data, error } = await getCategories();
       if (error) throw error;
       if (data) {
-        setCategories(data.map((cat: any) => cat.name || cat.category_name));
+        const categoryNames = data.map((cat: any) => cat.name || cat.category_name || '');
+        setCategories(categoryNames.filter(Boolean));
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -81,11 +85,13 @@ const FarmerProducts = () => {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await safeTable('products')
-        .insert([{
-          ...newProduct,
-          farmer_id: user?.id,
-        }]);
+      const productToCreate = {
+        ...newProduct,
+        farmer_id: user?.id,
+        farmer_name: user?.email?.split('@')[0] || 'Unknown Farmer', // Set a default farmer_name
+      };
+
+      const { error } = await safeTable('products').insert(productToCreate);
 
       if (error) throw error;
 
@@ -98,6 +104,8 @@ const FarmerProducts = () => {
         location: '',
         image_url: null,
         farmer_id: '',
+        farmer_name: '',
+        quality: 'standard',
       });
       fetchProducts();
     } catch (error) {
@@ -203,6 +211,22 @@ const FarmerProducts = () => {
                 onChange={(e) => setNewProduct(prev => ({ ...prev, location: e.target.value }))}
                 required
               />
+            </div>
+            <div>
+              <Label htmlFor="quality">Quality</Label>
+              <Select
+                onValueChange={(value) => setNewProduct(prev => ({ ...prev, quality: value }))}
+                defaultValue="standard"
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select quality" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="premium">Premium</SelectItem>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="economy">Economy</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <Button type="submit">Create Product</Button>
