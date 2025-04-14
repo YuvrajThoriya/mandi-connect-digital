@@ -61,7 +61,8 @@ export const insertIntoTable = async <T>(
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
-    const response = await table.insert(data);
+    // Use type assertion to avoid deep type instantiation
+    const response = await (table.insert(data) as any).select();
     
     return {
       data: response.data ? ensureType<T>(response.data) : null,
@@ -91,7 +92,8 @@ export const updateTable = async <T>(
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
-    const response = await table.update(data).eq(matchColumn, matchValue);
+    // Use type assertion to avoid deep type instantiation
+    const response = await (table.update(data).eq(matchColumn, matchValue) as any).select();
     
     return {
       data: response.data ? ensureType<T>(response.data) : null,
@@ -120,7 +122,8 @@ export const deleteFromTable = async <T>(
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
-    const response = await table.delete().eq(matchColumn, matchValue);
+    // Use type assertion to avoid deep type instantiation
+    const response = await (table.delete().eq(matchColumn, matchValue) as any).select();
     
     return {
       data: response.data ? ensureType<T>(response.data) : null,

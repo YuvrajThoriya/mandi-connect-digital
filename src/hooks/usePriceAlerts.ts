@@ -1,177 +1,167 @@
 
-import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/context/AuthContext";
-import { useToast } from "./use-toast";
-import { ensureType, safeTable } from "@/utils/supabaseUtils";
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
+import { toast } from '@/hooks/use-toast';
 
-export interface PriceAlert {
+interface PriceAlert {
   id: string;
   user_id: string;
   product_name: string;
-  condition: string;
+  product_id?: string;
+  condition: 'above' | 'below';
   target_price: number;
-  status: string;
+  status: 'active' | 'triggered' | 'disabled';
   created_at: string;
+  updated_at: string;
 }
 
 export const usePriceAlerts = () => {
   const { profile } = useAuth();
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const fetchAlerts = useCallback(async () => {
-    if (!profile?.id) return;
-    
+  const fetchAlerts = async () => {
     try {
-      setLoading(true);
+      if (!profile?.id) return;
       
-      // Using the safe table access helper
-      const { data, error: fetchError } = await safeTable('price_alerts')
+      // Use the correct object typing to avoid infinite type instantiation
+      const { data, error } = await supabase
+        .from('price_alerts')
         .select('*')
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false });
+        .eq('user_id', profile.id);
+
+      if (error) throw error;
       
-      if (fetchError) throw fetchError;
-      
-      // Safely convert the result to our expected type
-      if (data) {
-        setAlerts(ensureType<PriceAlert>(data));
-      } else {
-        setAlerts([]);
-      }
-      
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching price alerts:', err);
-      setError('Failed to load price alerts');
+      // Use type assertion to convert to PriceAlert[]
+      setAlerts(data as unknown as PriceAlert[]);
+    } catch (error) {
+      console.error('Error fetching price alerts:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load price alerts.',
+        variant: 'destructive',
+      });
+    } finally {
       setLoading(false);
     }
-  }, [profile?.id]);
+  };
 
-  const createAlert = useCallback(async (alert: Omit<PriceAlert, 'id' | 'user_id' | 'created_at'>) => {
-    if (!profile?.id) return null;
-    
+  const createAlert = async (alertData: Omit<PriceAlert, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'status'>) => {
     try {
-      const newAlert = {
-        ...alert,
-        user_id: profile.id,
-        status: alert.status || 'active'
-      };
+      if (!profile?.id) return null;
+
+      const { data, error } = await supabase
+        .from('price_alerts')
+        .insert({
+          user_id: profile.id,
+          product_name: alertData.product_name,
+          product_id: alertData.product_id,
+          condition: alertData.condition,
+          target_price: alertData.target_price,
+          status: 'active',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
       
-      const { data, error: createError } = await safeTable('price_alerts')
-        .insert(newAlert)
-        .select();
+      // Use type assertion
+      const newAlert = data as unknown as PriceAlert;
+      setAlerts((prev) => [...prev, newAlert]);
       
-      if (createError) throw createError;
-      
-      if (data && data.length > 0) {
-        // First ensure it has the correct shape, then cast to PriceAlert
-        const typedData = ensureType<PriceAlert>(data);
-        const newAlertTyped = typedData[0];
-        
-        setAlerts(prev => [newAlertTyped, ...prev]);
-        
-        toast({
-          title: "Alert Created",
-          description: `You'll be notified when ${alert.product_name} reaches your target price`,
-          variant: "default"
-        });
-        
-        return newAlertTyped;
-      }
-      
-      return null;
-    } catch (err) {
-      console.error('Error creating price alert:', err);
       toast({
-        title: "Error",
-        description: "Failed to create price alert",
-        variant: "destructive"
+        title: 'Success',
+        description: 'Price alert created successfully.',
+      });
+      
+      return newAlert;
+    } catch (error) {
+      console.error('Error creating price alert:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create price alert.',
+        variant: 'destructive',
       });
       return null;
     }
-  }, [profile?.id, toast]);
+  };
 
-  const deleteAlert = useCallback(async (alertId: string) => {
+  const updateAlert = async (id: string, updates: Partial<Omit<PriceAlert, 'id' | 'user_id' | 'created_at' | 'updated_at'>>) => {
     try {
-      const { error: deleteError } = await safeTable('price_alerts')
-        .delete()
-        .eq('id', alertId);
-      
-      if (deleteError) throw deleteError;
-      
-      setAlerts(prev => prev.filter(alert => alert.id !== alertId));
-      
-      toast({
-        title: "Alert Deleted",
-        description: "Price alert has been deleted",
-        variant: "default"
-      });
-      
-      return true;
-    } catch (err) {
-      console.error('Error deleting price alert:', err);
-      toast({
-        title: "Error",
-        description: "Failed to delete price alert",
-        variant: "destructive"
-      });
-      return false;
-    }
-  }, [toast]);
+      const { data, error } = await supabase
+        .from('price_alerts')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
 
-  const toggleAlertStatus = useCallback(async (alertId: string, currentStatus: string) => {
-    try {
-      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+      if (error) throw error;
       
-      const { error: updateError } = await safeTable('price_alerts')
-        .update({ status: newStatus })
-        .eq('id', alertId);
+      // Use type assertion
+      const updatedAlert = data as unknown as PriceAlert;
       
-      if (updateError) throw updateError;
-      
-      setAlerts(prev => 
-        prev.map(alert => 
-          alert.id === alertId 
-            ? { ...alert, status: newStatus } 
-            : alert
-        )
+      setAlerts((prev) =>
+        prev.map((alert) => (alert.id === id ? updatedAlert : alert))
       );
       
       toast({
-        title: `Alert ${newStatus === 'active' ? 'Activated' : 'Deactivated'}`,
-        description: `Price alert is now ${newStatus}`,
-        variant: "default"
+        title: 'Success',
+        description: 'Price alert updated successfully.',
       });
       
       return true;
-    } catch (err) {
-      console.error('Error updating price alert status:', err);
+    } catch (error) {
+      console.error('Error updating price alert:', error);
       toast({
-        title: "Error",
-        description: "Failed to update price alert status",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update price alert.',
+        variant: 'destructive',
       });
       return false;
     }
-  }, [toast]);
+  };
+
+  const deleteAlert = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('price_alerts')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      setAlerts((prev) => prev.filter((alert) => alert.id !== id));
+      
+      toast({
+        title: 'Success',
+        description: 'Price alert deleted successfully.',
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting price alert:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete price alert.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (profile?.id) {
       fetchAlerts();
     }
-  }, [profile?.id, fetchAlerts]);
+  }, [profile?.id]);
 
   return {
-    loading,
-    error,
     alerts,
+    loading,
     createAlert,
+    updateAlert,
     deleteAlert,
-    toggleAlertStatus,
-    fetchAlerts
+    refreshAlerts: fetchAlerts,
   };
 };

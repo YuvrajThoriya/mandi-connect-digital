@@ -47,7 +47,10 @@ const BidList = ({ bids }: BidListProps) => {
               <User className="h-5 w-5 text-muted-foreground" />
               <div className="font-medium">{bid.bidder_name || 'Anonymous Bidder'}</div>
             </div>
-            <Badge variant={bid.is_highest_bid ? "secondary" : "outline"} className={bid.is_highest_bid ? "bg-green-100 text-green-800" : ""}>
+            <Badge 
+              variant={bid.is_highest_bid ? "secondary" : "outline"} 
+              className={bid.is_highest_bid ? "bg-green-100 text-green-800" : ""}
+            >
               {bid.is_highest_bid && <ArrowUp className="mr-1 h-3 w-3" />}
               {bid.is_highest_bid ? "Highest Bid" : "Bid"}
             </Badge>

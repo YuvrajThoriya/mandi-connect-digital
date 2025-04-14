@@ -1,272 +1,311 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { DatePicker } from "@/components/ui/date-picker";
-import { useToast } from "@/components/ui/use-toast";
-import { format } from "date-fns";
-import { CalendarClock, Loader2, MapPin } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
-const timeSlots = [
-  "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
-  "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM",
-  "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM"
-];
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from '@/hooks/use-toast';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
+import { cn } from '@/lib/utils';
+import { ensureType } from '@/utils/supabaseUtils';
+
+interface AppointmentFormData {
+  title: string;
+  appointment_date: Date;
+  appointment_time: string;
+  location: string;
+  notes: string;
+  participant_id: string;
+}
+
+interface Participant {
+  id: string;
+  name: string;
+  role: string;
+}
 
 const AppointmentForm = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [traders, setTraders] = useState([]);
-  const [title, setTitle] = useState("");
-  const [traderId, setTraderId] = useState("");
-  const [date, setDate] = useState(null);
-  const [time, setTime] = useState("");
-  const [location, setLocation] = useState("");
-  const [notes, setNotes] = useState("");
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const form = useForm<AppointmentFormData>({
+    defaultValues: {
+      title: '',
+      appointment_date: new Date(),
+      appointment_time: '10:00',
+      location: '',
+      notes: '',
+      participant_id: '',
+    },
+  });
 
-  useEffect(() => {
-    const fetchTraders = async () => {
-      if (!profile?.id) return;
-      
-      setLoading(true);
+  React.useEffect(() => {
+    const fetchParticipants = async () => {
       try {
+        const role = profile?.role === 'farmer' ? 'trader' : 'farmer';
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, name')
-          .eq('role', 'trader');
-          
+          .select('id, name, role')
+          .eq('role', role);
+
         if (error) throw error;
-        
-        setTraders(data || []);
+        setParticipants(data || []);
       } catch (error) {
-        console.error('Error fetching traders:', error);
+        console.error('Error fetching participants:', error);
         toast({
           title: "Error",
-          description: "Failed to fetch traders. Please try again.",
-          variant: "destructive",
+          description: "Failed to load participants.",
+          variant: "destructive"
         });
-      } finally {
-        setLoading(false);
       }
     };
-    
-    fetchTraders();
-  }, [profile?.id, toast]);
-  
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!profile?.id || !traderId || !date || !time || !location || !title) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
-      return;
+
+    if (profile?.id) {
+      fetchParticipants();
     }
+  }, [profile]);
+
+  const onSubmit = async (data: AppointmentFormData) => {
+    if (!profile?.id) return;
     
-    setSubmitting(true);
-    
+    setIsLoading(true);
     try {
-      const appointmentData = {
-        farmer_id: profile.id,
-        trader_id: traderId,
-        title: title,
-        appointment_date: format(date, 'yyyy-MM-dd'),
-        appointment_time: time,
-        location: location,
-        status: "pending",
+      const appointment = {
+        title: data.title,
+        appointment_date: format(data.appointment_date, 'yyyy-MM-dd'),
+        appointment_time: data.appointment_time,
+        location: data.location,
+        notes: data.notes || null,
+        status: 'upcoming',
+        farmer_id: profile.role === 'farmer' ? profile.id : data.participant_id,
+        trader_id: profile.role === 'trader' ? profile.id : data.participant_id,
       };
-      
-      const { data: appointment, error } = await supabase
-        .from('appointments')
-        .insert(appointmentData)
-        .select()
-        .single();
-        
+
+      const { error } = await supabase.from('appointments').insert(appointment);
+
       if (error) throw error;
-      
-      // Create notification for trader
-      await supabase.from('notifications').insert({
-        user_id: traderId,
-        title: "New Appointment Request",
-        message: `${profile.name} has requested an appointment on ${format(date, 'PPP')} at ${time}`,
-        type: "appointment"
-      });
-      
+
+      // Create notification for the other participant
+      const notificationData = {
+        user_id: data.participant_id,
+        title: 'New Appointment',
+        message: `${profile.name} has scheduled an appointment with you on ${format(data.appointment_date, 'PPP')} at ${data.appointment_time}.`,
+        type: 'appointment',
+        read: false,
+      };
+
+      // Insert into notifications table if it exists
+      try {
+        await supabase.from('notification_settings').insert({
+          user_id: data.participant_id,
+          settings: {
+            appointments: true
+          }
+        });
+      } catch (err) {
+        console.log('Notification settings might already exist or table doesn\'t exist');
+      }
+
       toast({
         title: "Success",
-        description: "Appointment request sent successfully!",
+        description: "Appointment scheduled successfully.",
       });
-      
-      navigate('/farmer-appointments');
-      
+
+      navigate(profile.role === 'farmer' ? '/farmer-appointments' : '/trader-appointments');
     } catch (error) {
       console.error('Error creating appointment:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create appointment. Please try again.",
-        variant: "destructive",
+        description: "Failed to schedule appointment.",
+        variant: "destructive"
       });
     } finally {
-      setSubmitting(false);
+      setIsLoading(false);
     }
   };
-  
+
+  if (!profile) return null;
+
   return (
-    <DashboardLayout userRole="farmer">
+    <DashboardLayout userRole={profile.role as 'farmer' | 'trader'}>
       <DashboardHeader 
-        title="Book Appointment" 
-        userName={profile?.name || "Farmer"} 
-        userRole="farmer"
+        title="Schedule Appointment" 
+        userName={profile.name || ""}
+        userRole={profile.role as 'farmer' | 'trader'}
       />
       
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarClock className="h-5 w-5" />
-            Request an Appointment
-          </CardTitle>
-          <CardDescription>
-            Fill in the details to request an appointment with a trader
-          </CardDescription>
-        </CardHeader>
-        
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Title */}
-              <div className="space-y-2">
-                <Label htmlFor="title">Appointment Title</Label>
-                <Input
-                  id="title"
-                  placeholder="e.g., Product Discussion"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
+      <div className="container max-w-4xl mx-auto py-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>New Appointment</CardTitle>
+            <CardDescription>
+              Schedule a meeting with a {profile.role === 'farmer' ? 'trader' : 'farmer'}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Meeting title" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              
-              {/* Trader Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="trader">Trader</Label>
-                <Select 
-                  value={traderId} 
-                  onValueChange={setTraderId}
-                  disabled={loading}
-                >
-                  <SelectTrigger id="trader">
-                    <SelectValue placeholder="Select a trader" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {traders.map((trader) => (
-                      <SelectItem key={trader.id} value={trader.id}>
-                        {trader.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Date */}
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <DatePicker
-                  date={date}
-                  setDate={setDate}
-                  disabled={(date) => date < new Date()}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="appointment_date"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Date</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) =>
+                                date < new Date(new Date().setHours(0, 0, 0, 0))
+                              }
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="appointment_time"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Time</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Meeting location" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              
-              {/* Time */}
-              <div className="space-y-2">
-                <Label htmlFor="time">Time</Label>
-                <Select 
-                  value={time} 
-                  onValueChange={setTime}
-                >
-                  <SelectTrigger id="time">
-                    <SelectValue placeholder="Select time slot" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="h-60">
-                      {timeSlots.map(time => (
-                        <SelectItem key={time} value={time}>
-                          {time}
-                        </SelectItem>
-                      ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            {/* Location */}
-            <div className="space-y-2">
-              <Label htmlFor="location" className="flex items-center gap-1">
-                <MapPin className="h-4 w-4" />
-                Location
-              </Label>
-              <Input
-                id="location"
-                placeholder="e.g., Trader's Office, Virtual Meeting"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                required
-              />
-            </div>
-            
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
-              <Textarea
-                id="notes"
-                placeholder="Add any additional details about the appointment"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={4}
-              />
-            </div>
+                
+                <FormField
+                  control={form.control}
+                  name="participant_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {profile.role === 'farmer' ? 'Select Trader' : 'Select Farmer'}
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={`Select a ${profile.role === 'farmer' ? 'trader' : 'farmer'}`} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {participants.map((participant) => (
+                            <SelectItem key={participant.id} value={participant.id}>
+                              {participant.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Any additional notes for the meeting"
+                          className="min-h-[100px]"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="flex justify-end space-x-2">
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    onClick={() => navigate(profile.role === 'farmer' ? '/farmer-appointments' : '/trader-appointments')}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? 'Scheduling...' : 'Schedule Appointment'}
+                  </Button>
+                </div>
+              </form>
+            </Form>
           </CardContent>
-          
-          <CardFooter className="flex justify-between">
-            <Button 
-              type="button"
-              variant="outline"
-              onClick={() => navigate('/farmer-appointments')}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit"
-              disabled={submitting || !traderId || !date || !time || !location || !title}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                'Request Appointment'
-              )}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+        </Card>
+      </div>
     </DashboardLayout>
   );
 };
