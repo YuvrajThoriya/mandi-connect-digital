@@ -25,7 +25,7 @@ export default function FarmerOrders() {
   const navigate = useNavigate();
   
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // Change from "" to "all"
   
   // Get all orders for this farmer
   const orders = getMyOrders();
@@ -38,7 +38,7 @@ export default function FarmerOrders() {
       order.traderName.toLowerCase().includes(searchTerm.toLowerCase());
       
     const matchesStatus = 
-      statusFilter === "" || 
+      statusFilter === "all" || // Change from "" to "all"
       order.status === statusFilter;
       
     return matchesSearch && matchesStatus;
@@ -91,7 +91,7 @@ export default function FarmerOrders() {
                     <SelectValue placeholder="Filter by Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Statuses</SelectItem>
+                    <SelectItem value="all">All Statuses</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="paid">Paid</SelectItem>
                     <SelectItem value="shipped">Shipped</SelectItem>
@@ -107,7 +107,7 @@ export default function FarmerOrders() {
                 className="h-9"
                 onClick={() => {
                   setSearchTerm("");
-                  setStatusFilter("");
+                  setStatusFilter("all"); // Change from "" to "all"
                 }}
               >
                 <Filter className="mr-2 h-4 w-4" />
