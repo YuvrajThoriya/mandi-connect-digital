@@ -1,32 +1,30 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, safeTable } from '@/integrations/supabase/client';
 import { Appointment, CreateAppointmentDto, UpdateAppointmentDto } from '../types/appointment';
 
 export const appointmentService = {
   async createAppointment(appointment: CreateAppointmentDto): Promise<Appointment> {
-    const { data, error } = await supabase
-      .from('appointments')
-      .insert([{
+    const { data, error } = await safeTable<Appointment>('appointments')
+      .insert({
         ...appointment,
         farmer_id: appointment.farmer_id || '',
         status: 'upcoming'
-      }])
+      })
       .select()
       .single();
 
     if (error) throw error;
-    return data as unknown as Appointment;
+    return data as Appointment;
   },
 
   async getAppointmentById(id: string): Promise<Appointment> {
-    const { data, error } = await supabase
-      .from('appointments')
+    const { data, error } = await safeTable<Appointment>('appointments')
       .select('*')
       .eq('id', id)
       .single();
 
     if (error) throw error;
-    return data as unknown as Appointment;
+    return data as Appointment;
   },
 
   async getFarmerAppointments(farmerId: string): Promise<Appointment[]> {

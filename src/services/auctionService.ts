@@ -1,21 +1,20 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, safeTable } from '@/integrations/supabase/client';
 import { Auction, CreateAuctionDto, UpdateAuctionDto } from '../types/auction';
 
 export const auctionService = {
   async createAuction(auction: CreateAuctionDto): Promise<Auction> {
-    const { data, error } = await supabase
-      .from('auctions')
-      .insert([{
+    const { data, error } = await safeTable<Auction>('auctions')
+      .insert({
         ...auction,
         current_price: auction.start_price,
         status: 'active'
-      }])
+      })
       .select()
       .single();
 
     if (error) throw error;
-    return data as unknown as Auction;
+    return data as Auction;
   },
 
   async getAuctionById(id: string): Promise<Auction> {

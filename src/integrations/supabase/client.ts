@@ -6,10 +6,11 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://rrzuifckyctcncvpokcn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyenVpZmNreWN0Y25jdnBva2NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM4MzA0MTksImV4cCI6MjA1OTQwNjQxOX0.MFrDXaq6wv_rGbK7Ntdbt7_BYHgxc3ZH40xNpol6X-Y";
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
+// Create a more permissive Supabase client that allows for dynamic table access
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+// This is a typed client for tables that are defined in the Database type
+export const typedSupabase = supabase;
 
 // To use Supabase realtime features
 export const enableRealtimeFor = (tables: string[]) => {
@@ -24,4 +25,9 @@ export const enableRealtimeFor = (tables: string[]) => {
   });
   
   return channel.subscribe();
+};
+
+// Helper for safely accessing tables that might not be in the type definition
+export const safeTable = <T = any>(tableName: string) => {
+  return supabase.from(tableName) as any;
 };

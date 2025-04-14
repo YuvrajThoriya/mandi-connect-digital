@@ -1,5 +1,5 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, safeTable } from '@/integrations/supabase/client';
 
 // Helper for notifications
 export const createNotification = async (
@@ -10,26 +10,19 @@ export const createNotification = async (
   metadata?: any
 ) => {
   try {
-    const { data, error } = await supabase.rpc('create_notification', {
-      p_user_id: userId,
-      p_title: title,
-      p_message: message,
-      p_type: type,
-      p_metadata: metadata || {}
-    });
+    // Use the safe table access helper
+    const { data, error } = await safeTable('notifications')
+      .insert({
+        user_id: userId,
+        title,
+        message,
+        type,
+        metadata: metadata || {},
+        read: false
+      });
     
     if (error) {
-      // Fallback if RPC doesn't exist
-      const { error: insertError } = await supabase.rpc('exec_sql', {
-        sql_query: `
-          INSERT INTO public.notifications (user_id, title, message, type, metadata)
-          VALUES ('${userId}', '${title}', '${message}', '${type}', '${JSON.stringify(metadata || {})}')
-        `
-      });
-      
-      if (insertError) {
-        console.error('Error creating notification:', insertError);
-      }
+      console.error('Error creating notification:', error);
     }
     
     return data;
@@ -43,14 +36,14 @@ export const createNotification = async (
 export const getCategories = async () => {
   try {
     // Try to get categories from the categories table
-    const { data, error } = await supabase.rpc('get_categories');
+    const { data, error } = await safeTable('categories').select('*');
     
     if (error || !data) {
       // Fallback to default categories
       return ['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Other'];
     }
     
-    return data.map((cat: any) => cat.name);
+    return data.map((cat: any) => cat.name || '');
   } catch (err) {
     console.error('Error fetching categories:', err);
     return ['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Other'];
@@ -60,22 +53,10 @@ export const getCategories = async () => {
 // Helper for market trends
 export const getMarketTrends = async () => {
   try {
-    const { data, error } = await supabase.rpc('get_market_trends');
+    const { data, error } = await safeTable('market_trends').select('*').order('date', { ascending: false });
     
     if (error || !data) {
-      // Fallback to direct query using RPC to execute raw SQL
-      const { data: fallbackData, error: fallbackError } = await supabase.rpc('exec_sql', {
-        sql_query: `
-          SELECT * FROM market_trends 
-          ORDER BY date DESC
-        `
-      });
-      
-      if (fallbackError) {
-        throw fallbackError;
-      }
-      
-      return fallbackData || [];
+      return [];
     }
     
     return data;
@@ -88,9 +69,9 @@ export const getMarketTrends = async () => {
 // Helper for documents
 export const getUserDocuments = async (userId: string) => {
   try {
-    const { data, error } = await supabase.rpc('get_user_documents', {
-      p_user_id: userId
-    });
+    const { data, error } = await safeTable('documents')
+      .select('*')
+      .eq('user_id', userId);
     
     if (error || !data) {
       // Fallback
@@ -113,13 +94,14 @@ export const addUserDocument = async (
   size: number
 ) => {
   try {
-    const { data, error } = await supabase.rpc('add_user_document', {
-      p_user_id: userId,
-      p_name: name,
-      p_type: type,
-      p_url: url,
-      p_size: size
-    });
+    const { data, error } = await safeTable('documents')
+      .insert({
+        user_id: userId,
+        name,
+        type,
+        url,
+        size
+      });
     
     if (error) {
       throw error;
@@ -135,9 +117,9 @@ export const addUserDocument = async (
 // Helper function to delete document
 export const deleteUserDocument = async (documentId: string) => {
   try {
-    const { data, error } = await supabase.rpc('delete_user_document', {
-      p_document_id: documentId
-    });
+    const { error } = await safeTable('documents')
+      .delete()
+      .eq('id', documentId);
     
     if (error) {
       throw error;

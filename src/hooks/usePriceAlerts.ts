@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, safeTable } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "./use-toast";
 
@@ -27,16 +27,15 @@ export const usePriceAlerts = () => {
     try {
       setLoading(true);
       
-      // Using the postgres function to access the table directly
-      const { data, error: fetchError } = await supabase
-        .from('price_alerts')
+      // Using the safe table access helper
+      const { data, error: fetchError } = await safeTable<PriceAlert>('price_alerts')
         .select('*')
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false });
       
       if (fetchError) throw fetchError;
       
-      setAlerts(data as unknown as PriceAlert[]);
+      setAlerts(data as PriceAlert[]);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching price alerts:', err);
@@ -55,15 +54,14 @@ export const usePriceAlerts = () => {
         status: alert.status || 'active'
       };
       
-      const { data, error: createError } = await supabase
-        .from('price_alerts')
+      const { data, error: createError } = await safeTable<PriceAlert>('price_alerts')
         .insert(newAlert)
         .select();
       
       if (createError) throw createError;
       
       if (data && data.length > 0) {
-        setAlerts(prev => [(data[0] as unknown as PriceAlert), ...prev]);
+        setAlerts(prev => [(data[0] as PriceAlert), ...prev]);
         
         toast({
           title: "Alert Created",
@@ -71,7 +69,7 @@ export const usePriceAlerts = () => {
           variant: "default"
         });
         
-        return data[0] as unknown as PriceAlert;
+        return data[0] as PriceAlert;
       }
       
       return null;
@@ -88,8 +86,7 @@ export const usePriceAlerts = () => {
 
   const deleteAlert = useCallback(async (alertId: string) => {
     try {
-      const { error: deleteError } = await supabase
-        .from('price_alerts')
+      const { error: deleteError } = await safeTable<PriceAlert>('price_alerts')
         .delete()
         .eq('id', alertId);
       
@@ -119,8 +116,7 @@ export const usePriceAlerts = () => {
     try {
       const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
       
-      const { error: updateError } = await supabase
-        .from('price_alerts')
+      const { error: updateError } = await safeTable<PriceAlert>('price_alerts')
         .update({ status: newStatus })
         .eq('id', alertId);
       

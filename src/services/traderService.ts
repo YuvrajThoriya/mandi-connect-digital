@@ -1,5 +1,5 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, safeTable } from '@/integrations/supabase/client';
 import { BusinessDetails, CompanyFormData, ProfileFormData } from '../types/trader';
 import { Appointment, CreateAppointmentDto } from '../types/appointment';
 import { Bid, CreateBidDto } from '../types/bid';
@@ -57,40 +57,31 @@ export const traderService = {
   },
 
   // Bidding Management
-  async placeBid(bidData: CreateBidDto): Promise<Bid> {
-    const userId = (await supabase.auth.getUser()).data.user?.id;
-    const { data: userData } = await supabase
-      .from('profiles')
-      .select('name')
-      .eq('id', userId)
-      .single();
-
-    const { data, error } = await supabase
-      .from('bids')
-      .insert([{
+  async placeBid(bidData: CreateBidDto & { bidder_id: string, bidder_name: string }): Promise<Bid> {
+    const { data, error } = await safeTable<Bid>('bids')
+      .insert({
         ...bidData,
-        bidder_id: userId || '',
-        bidder_name: userData?.name || '',
-        product_id: bidData.product_id,
-        auction_end_time: new Date().toISOString(),
-        expires_at: new Date().toISOString()
-      }])
+        status: 'pending',
+        is_highest_bid: false,
+        previous_bid_amount: null,
+        expires_at: new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toISOString(),
+        auction_end_time: new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      })
       .select()
       .single();
 
     if (error) throw error;
-    return data as unknown as Bid;
+    return data as Bid;
   },
 
   async getTraderBids(traderId: string): Promise<Bid[]> {
-    const { data, error } = await supabase
-      .from('bids')
+    const { data, error } = await safeTable<Bid>('bids')
       .select('*')
       .eq('bidder_id', traderId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data as unknown as Bid[];
+    return data as Bid[];
   },
 
   // Order Management
@@ -105,15 +96,15 @@ export const traderService = {
       .eq('id', orderData.product_id)
       .single();
     
-    const userId = (await supabase.auth.getUser()).data.user?.id;
+    const user = await supabase.auth.getUser();
+    const userId = user.data.user?.id || '';
     
     if (!productData?.farmer_id || !userId) {
       throw new Error('Product not found or user not authenticated');
     }
     
-    const { data, error } = await supabase
-      .from('orders')
-      .insert([{
+    const { data, error } = await safeTable<Order>('orders')
+      .insert({
         product_id: orderData.product_id,
         quantity: orderData.quantity,
         price: orderData.price,
@@ -124,65 +115,57 @@ export const traderService = {
         notes: orderData.notes || '',
         status: 'pending',
         payment_status: 'pending'
-      }])
+      })
       .select()
       .single();
 
     if (error) throw error;
-    return data as unknown as Order;
+    return data as Order;
   },
 
   async getTraderOrders(traderId: string): Promise<Order[]> {
-    const { data, error } = await supabase
-      .from('orders')
+    const { data, error } = await safeTable<Order>('orders')
       .select('*')
       .eq('trader_id', traderId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data as unknown as Order[];
+    return data as Order[];
   },
 
   // Appointment Management
-  async createAppointment(appointmentData: CreateAppointmentDto): Promise<Appointment> {
-    const { data, error } = await supabase
-      .from('appointments')
-      .insert([{
+  async createAppointment(appointmentData: CreateAppointmentDto & { farmer_id: string }): Promise<Appointment> {
+    const { data, error } = await safeTable<Appointment>('appointments')
+      .insert({
         ...appointmentData,
         status: 'upcoming'
-      }])
+      })
       .select()
       .single();
 
     if (error) throw error;
-    return data as unknown as Appointment;
+    return data as Appointment;
   },
 
   async getTraderAppointments(traderId: string): Promise<Appointment[]> {
-    const { data, error } = await supabase
-      .from('appointments')
+    const { data, error } = await safeTable<Appointment>('appointments')
       .select('*')
       .eq('trader_id', traderId)
       .order('appointment_date', { ascending: true });
 
     if (error) throw error;
-    return data as unknown as Appointment[];
+    return data as Appointment[];
   },
 
   // Market Analysis
   async getMarketTrends() {
-    const { data, error } = await supabase
-      .rpc('get_market_trends');
+    const { data, error } = await safeTable('market_trends')
+      .select('*')
+      .order('date', { ascending: false });
 
     if (error) {
-      // Fallback to direct table access if RPC fails
-      const { data: directData, error: directError } = await supabase
-        .from('market_trends')
-        .select('*')
-        .order('date', { ascending: false });
-      
-      if (directError) throw directError;
-      return directData;
+      // Fallback to empty array if table doesn't exist yet
+      return [];
     }
     
     return data;

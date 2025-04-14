@@ -1,3 +1,4 @@
+
 export interface Appointment {
   id: string;
   trader_id: string;
@@ -13,6 +14,7 @@ export interface Appointment {
 
 export interface CreateAppointmentDto {
   trader_id: string;
+  farmer_id?: string; // Make farmer_id optional to match service implementation
   title: string;
   appointment_date: string;
   appointment_time: string;
