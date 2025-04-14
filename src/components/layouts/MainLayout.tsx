@@ -45,22 +45,22 @@ export function MainLayout({ children }: MainLayoutProps) {
     { name: 'Home', path: '/', icon: Home },
     { name: 'My Products', path: '/farmer/products', icon: ShoppingBag },
     { name: 'My Auctions', path: '/farmer/auctions', icon: Package },
-    { name: 'Orders', path: '/orders', icon: Receipt },
-    { name: 'Appointments', path: '/appointments', icon: Calendar },
-    { name: 'Notifications', path: '/notifications', icon: Bell, badge: unreadNotifications },
-    { name: 'Profile', path: '/profile', icon: User },
-    { name: 'Settings', path: '/settings', icon: Settings },
+    { name: 'Orders', path: '/farmer/orders', icon: Receipt },
+    { name: 'Appointments', path: '/farmer/appointments', icon: Calendar },
+    { name: 'Notifications', path: '/farmer/notifications', icon: Bell, badge: unreadNotifications },
+    { name: 'Profile', path: '/farmer/profile', icon: User },
+    { name: 'Settings', path: '/farmer/settings', icon: Settings },
   ];
 
   const traderNavItems = [
     { name: 'Home', path: '/', icon: Home },
     { name: 'Products', path: '/trader/products', icon: ShoppingBag },
     { name: 'Auctions', path: '/trader/auctions', icon: Package },
-    { name: 'My Orders', path: '/orders', icon: Receipt },
-    { name: 'Appointments', path: '/appointments', icon: Calendar },
-    { name: 'Notifications', path: '/notifications', icon: Bell, badge: unreadNotifications },
-    { name: 'Profile', path: '/profile', icon: User },
-    { name: 'Settings', path: '/settings', icon: Settings },
+    { name: 'My Orders', path: '/trader/orders', icon: Receipt },
+    { name: 'Appointments', path: '/trader/appointments', icon: Calendar },
+    { name: 'Notifications', path: '/trader/notifications', icon: Bell, badge: unreadNotifications },
+    { name: 'Profile', path: '/trader/profile', icon: User },
+    { name: 'Settings', path: '/trader/settings', icon: Settings },
   ];
 
   const navItems = user?.role === 'farmer' ? farmerNavItems : traderNavItems;
