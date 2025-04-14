@@ -1,6 +1,7 @@
 
 import { supabase, safeTable } from '@/integrations/supabase/client';
 import { Order, CreateOrderDto, UpdateOrderDto } from '../types/order';
+import { ensureType } from '@/utils/supabaseUtils';
 
 export const orderService = {
   async createOrder(orderData: CreateOrderDto): Promise<Order> {
@@ -18,10 +19,10 @@ export const orderService = {
       throw new Error('Product not found');
     }
     
-    const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id || '';
+    const userResponse = await supabase.auth.getUser();
+    const userId = userResponse.data.user?.id || '';
     
-    const { data, error } = await safeTable<Order>('orders')
+    const { data, error } = await safeTable('orders')
       .insert({
         product_id: orderData.product_id,
         quantity: orderData.quantity,
@@ -42,7 +43,7 @@ export const orderService = {
   },
 
   async getOrderById(id: string): Promise<Order> {
-    const { data, error } = await safeTable<Order>('orders')
+    const { data, error } = await safeTable('orders')
       .select('*')
       .eq('id', id)
       .single();
@@ -52,27 +53,27 @@ export const orderService = {
   },
 
   async getFarmerOrders(farmerId: string): Promise<Order[]> {
-    const { data, error } = await safeTable<Order>('orders')
+    const { data, error } = await safeTable('orders')
       .select('*')
       .eq('farmer_id', farmerId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data as Order[];
+    return ensureType<Order>(data);
   },
 
   async getTraderOrders(traderId: string): Promise<Order[]> {
-    const { data, error } = await safeTable<Order>('orders')
+    const { data, error } = await safeTable('orders')
       .select('*')
       .eq('trader_id', traderId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data as Order[];
+    return ensureType<Order>(data);
   },
 
   async updateOrder(id: string, updates: UpdateOrderDto): Promise<Order> {
-    const { data, error } = await safeTable<Order>('orders')
+    const { data, error } = await safeTable('orders')
       .update(updates)
       .eq('id', id)
       .select()
@@ -91,7 +92,7 @@ export const orderService = {
   },
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {
-    const { data, error } = await safeTable<Order>('orders')
+    const { data, error } = await safeTable('orders')
       .update({ status })
       .eq('id', id)
       .select()
@@ -102,7 +103,7 @@ export const orderService = {
   },
 
   async updatePaymentStatus(id: string, paymentStatus: string): Promise<Order> {
-    const { data, error } = await safeTable<Order>('orders')
+    const { data, error } = await safeTable('orders')
       .update({ payment_status: paymentStatus })
       .eq('id', id)
       .select()

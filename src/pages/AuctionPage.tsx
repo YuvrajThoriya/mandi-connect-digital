@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -132,7 +133,7 @@ const AuctionPage = () => {
           amount: bidAmountNum,
           message: message || null,
           auction_id: auction.id,
-          quantity: quantity,
+          quantity: parseInt(quantity, 10),
         })
         .select()
         .single();
@@ -181,33 +182,34 @@ const AuctionPage = () => {
   const handleCreateOrder = async () => {
     try {
       // Calculate the total amount based on price and quantity
-    const total_amount = product.price * quantity;
+      const quantityNum = parseInt(quantity, 10);
+      const total_amount = product.price * quantityNum;
 
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        product_id: product.id,
-        farmer_id: auction.farmer_id,
-        trader_id: user.id,
-        quantity: quantity,
-        price: product.price,
-        total_amount: total_amount, // Added the total_amount field
-        status: 'pending',
-        payment_status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          product_id: product.id,
+          farmer_id: auction.farmer_id,
+          trader_id: user?.id,
+          quantity: quantityNum,
+          price: product.price,
+          total_amount: total_amount,
+          status: 'pending',
+          payment_status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-    if (orderError) throw orderError;
+      if (orderError) throw orderError;
 
       toast({
         title: "Success",
         description: "Order created successfully",
         variant: "default",
       });
-      navigate(`/trader-orders/${data.id}`);
+      navigate(`/trader-orders/${orderData.id}`);
     } catch (error: any) {
       console.error("Error creating order:", error);
       toast({

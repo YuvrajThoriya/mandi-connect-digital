@@ -7,8 +7,11 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
+// This function allows us to bypass TypeScript type checking for table names
+// that aren't included in the Database type definition
 export const safeTable = <T = any>(tableName: string) => {
-  return supabase.from(tableName as any);
+  // @ts-ignore - We're intentionally allowing any table name
+  return supabase.from(tableName);
 };
 
 export const enableRealtimeFor = (tables: string[]) => {

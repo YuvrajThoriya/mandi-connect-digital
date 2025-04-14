@@ -38,12 +38,12 @@ const FarmerProducts = () => {
     image_url: null,
     farmer_id: '',
   });
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchProducts();
-    fetchCategories();
+    fetchAllCategories();
   }, []);
 
   const fetchProducts = async () => {
@@ -66,23 +66,17 @@ const FarmerProducts = () => {
     }
   };
 
-  // Replace the categories fetching code
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const { data, error } = await safeTable('categories')
-          .select('id, name')
-          .order('name');
-
-        if (error) throw error;
-        setCategories(data || []);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
+  const fetchAllCategories = async () => {
+    try {
+      const { data, error } = await getCategories();
+      if (error) throw error;
+      if (data) {
+        setCategories(data.map((cat: any) => cat.name || cat.category_name));
       }
-    };
-    
-    fetchCategories();
-  }, []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,11 +154,10 @@ const FarmerProducts = () => {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* Replace the rendering of category options */}
                   {categories.length > 0 ? (
-                    categories.map((category: any) => (
-                      <SelectItem key={category.id} value={category.name}>
-                        {category.name}
+                    categories.map((category: string) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
                       </SelectItem>
                     ))
                   ) : (

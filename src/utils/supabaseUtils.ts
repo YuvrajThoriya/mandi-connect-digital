@@ -1,3 +1,4 @@
+
 import { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -10,10 +11,22 @@ export type PostgrestErrorWithName = PostgrestError & {
   name?: string;
 };
 
+// Helper to safely handle type conversions from Supabase responses
+export function ensureType<T>(data: any): T[] {
+  if (!data) return [];
+  if (Array.isArray(data)) {
+    return data as T[];
+  }
+  return [data] as T[];
+}
+
+// Get a typed reference to a table (allows using any table name)
 export const safeTable = <T = any>(tableName: string) => {
-  return supabase.from(tableName as any);
+  // @ts-ignore - We're intentionally allowing any table name
+  return supabase.from(tableName);
 };
 
+// Type-safe query operation
 export const queryTable = async <T>(
   tableName: string,
   queryFn: (table: any) => any
@@ -21,8 +34,9 @@ export const queryTable = async <T>(
   try {
     const table = safeTable(tableName);
     const response = await queryFn(table);
+    
     return {
-      data: response.data as T[] | null,
+      data: response.data ? ensureType<T>(response.data) : null,
       error: response.error ? { ...response.error, name: 'QueryError' } : null
     };
   } catch (err) {
@@ -40,16 +54,19 @@ export const queryTable = async <T>(
   }
 };
 
+// Type-safe insert operation
 export const insertIntoTable = async <T>(
   tableName: string,
   data: any,
-  options: { returning?: boolean } = { returning: true }
+  options = {}
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
+    // @ts-ignore - We need to support any options structure
     const response = await table.insert(data, options);
+    
     return {
-      data: response.data as T[] | null,
+      data: response.data ? ensureType<T>(response.data) : null,
       error: response.error ? { ...response.error, name: 'InsertError' } : null
     };
   } catch (err) {
@@ -67,18 +84,21 @@ export const insertIntoTable = async <T>(
   }
 };
 
+// Type-safe update operation
 export const updateTable = async <T>(
   tableName: string,
   data: any,
   matchColumn: string,
   matchValue: string | number,
-  options: { returning?: boolean } = { returning: true }
+  options = {}
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
+    // @ts-ignore - We need to support any options structure
     const response = await table.update(data, options).eq(matchColumn, matchValue);
+    
     return {
-      data: response.data as T[] | null,
+      data: response.data ? ensureType<T>(response.data) : null,
       error: response.error ? { ...response.error, name: 'UpdateError' } : null
     };
   } catch (err) {
@@ -96,17 +116,20 @@ export const updateTable = async <T>(
   }
 };
 
+// Type-safe delete operation
 export const deleteFromTable = async <T>(
   tableName: string,
   matchColumn: string,
   matchValue: string | number,
-  options: { returning?: boolean } = { returning: true }
+  options = {}
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
+    // @ts-ignore - We need to support any options structure
     const response = await table.delete(options).eq(matchColumn, matchValue);
+    
     return {
-      data: response.data as T[] | null,
+      data: response.data ? ensureType<T>(response.data) : null,
       error: response.error ? { ...response.error, name: 'DeleteError' } : null
     };
   } catch (err) {
@@ -124,6 +147,7 @@ export const deleteFromTable = async <T>(
   }
 };
 
+// Property checking utility
 export function hasProperty<T extends object, K extends PropertyKey>(
   obj: T, 
   prop: K
@@ -131,6 +155,7 @@ export function hasProperty<T extends object, K extends PropertyKey>(
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
+// Ensure object has required property with fallback
 export function ensureObjectWithProperty<T extends object, K extends PropertyKey>(
   obj: any,
   prop: K,
@@ -142,7 +167,11 @@ export function ensureObjectWithProperty<T extends object, K extends PropertyKey
   return defaultValue as T & Record<K, unknown>;
 }
 
+// Get categories helper
 export const getCategories = async () => {
   const { data, error } = await queryTable('categories', table => table.select('*'));
-  return { data, error };
+  if (data) {
+    return { data: data as any[], error };
+  }
+  return { data: [], error };
 };

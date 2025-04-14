@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -13,12 +14,14 @@ import { Select, SelectValue, SelectTrigger, SelectContent, SelectItem } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft, Package, Tag, MapPin, CheckCircle, XCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { ensureObjectWithProperty } from "@/utils/supabaseUtils";
 
 const OrderDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
+  const [userRole, setUserRole] = useState<"trader" | "farmer">("trader");
 
   const [isLoading, setIsLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
@@ -26,8 +29,12 @@ const OrderDetail = () => {
   const [paymentStatus, setPaymentStatus] = useState("");
 
   useEffect(() => {
+    if (profile?.role) {
+      setUserRole(profile.role as "trader" | "farmer");
+    }
+    
     fetchOrder();
-  }, [id]);
+  }, [id, profile?.role]);
 
   const fetchOrder = async () => {
     if (!id) return;
@@ -58,9 +65,16 @@ const OrderDetail = () => {
 
       if (error) throw error;
 
-      setOrder(data);
-      setStatus(data?.status || "");
-      setPaymentStatus(data?.payment_status || "");
+      // Process data to ensure related objects have expected properties
+      const processedData = {
+        ...data,
+        farmerProfile: ensureObjectWithProperty(data?.farmerProfile, 'name'),
+        traderProfile: ensureObjectWithProperty(data?.traderProfile, 'name')
+      };
+
+      setOrder(processedData);
+      setStatus(processedData?.status || "");
+      setPaymentStatus(processedData?.payment_status || "");
     } catch (error) {
       console.error("Error fetching order:", error);
       toast({
@@ -91,7 +105,7 @@ const OrderDetail = () => {
         .insert({
           user_id: recipientId,
           title: 'Order Status Update',
-          message: `Order #${id.substring(0, 8)} status has been updated to ${newStatus}`,
+          message: `Order #${id?.substring(0, 8)} status has been updated to ${newStatus}`,
           type: 'order',
           read: false,
           created_at: new Date().toISOString()
@@ -136,7 +150,7 @@ const OrderDetail = () => {
         .insert({
           user_id: recipientId,
           title: 'Payment Status Update',
-          message: `Order #${id.substring(0, 8)} payment status has been updated to ${newStatus}`,
+          message: `Order #${id?.substring(0, 8)} payment status has been updated to ${newStatus}`,
           type: 'payment',
           read: false,
           created_at: new Date().toISOString()
@@ -160,7 +174,7 @@ const OrderDetail = () => {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
+      <DashboardLayout userRole={userRole}>
         <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
@@ -170,7 +184,7 @@ const OrderDetail = () => {
 
   if (!order) {
     return (
-      <DashboardLayout>
+      <DashboardLayout userRole={userRole}>
         <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
           Order not found.
         </div>
@@ -179,16 +193,16 @@ const OrderDetail = () => {
   }
 
   const farmerName = order?.farmerProfile?.name || "Unknown Farmer";
-const traderName = order?.traderProfile?.name || "Unknown Trader";
+  const traderName = order?.traderProfile?.name || "Unknown Trader";
 
   return (
-    <DashboardLayout>
+    <DashboardLayout userRole={userRole}>
       <div className="mb-6">
         <Button variant="outline" onClick={() => navigate(-1)} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <DashboardHeader title="Order Details" userName={user?.name || "User"} />
+        <DashboardHeader title="Order Details" userName={profile?.name || "User"} userRole={userRole} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

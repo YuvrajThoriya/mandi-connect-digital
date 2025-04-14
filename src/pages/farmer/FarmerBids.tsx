@@ -1,20 +1,29 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import DashboardSidebar from '@/components/DashboardSidebar';
 import { useAuth } from '@/context/AuthContext';
-import { safeTable } from '@/integrations/supabase/client';
+import { supabase, safeTable, enableRealtimeFor } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/utils';
 import { Bid } from '@/types/bid';
-import { queryTable, insertIntoTable } from '@/utils/supabaseUtils';
+import { queryTable, insertIntoTable, ensureType } from '@/utils/supabaseUtils';
+
+interface ExtendedBid extends Bid {
+  product?: {
+    name: string;
+    image_url?: string | null;
+    farmer_id?: string;
+  };
+}
 
 export const FarmerBids = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [bids, setBids] = useState<Bid[]>([]);
+  const [bids, setBids] = useState<ExtendedBid[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -22,20 +31,16 @@ export const FarmerBids = () => {
     fetchBids();
 
     // Set up real-time subscription for bid updates
-    const channel = safeTable('bids')
-      .on('INSERT', payload => { fetchBids(); })
-      .on('UPDATE', payload => { fetchBids(); })
-      .on('DELETE', payload => { fetchBids(); })
-      .subscribe();
+    const subscription = enableRealtimeFor(['bids']);
     
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(subscription);
     };
   }, []);
 
   const fetchBids = async () => {
     try {
-      const { data, error } = await queryTable<Bid & {product: any}>('bids',
+      const { data, error } = await queryTable<any>('bids',
         table => table.select(`
           *,
           product:products(
@@ -50,12 +55,13 @@ export const FarmerBids = () => {
 
       if (error) throw error;
       
-      // Process data to ensure it matches the Bid type
+      // Process data to ensure it matches the ExtendedBid type
       if (data) {
         const processedBids = data.map(bid => ({
           ...bid,
-          status: bid.status || 'pending' // Ensure status has a value
-        })) as unknown as Bid[];
+          status: bid.status || 'pending',
+          product: bid.product || { name: 'Unknown Product' }
+        }));
         
         setBids(processedBids);
       } else {
@@ -100,7 +106,7 @@ export const FarmerBids = () => {
 
       // Create an order from the accepted bid
       await safeTable('orders')
-        .insert([{
+        .insert({
           product_id: bid.product_id,
           trader_id: bid.bidder_id,
           farmer_id: user?.id,
@@ -109,7 +115,7 @@ export const FarmerBids = () => {
           total_amount: bid.amount * bid.quantity,
           status: 'pending',
           payment_status: 'pending'
-        }]);
+        });
 
       // Update product status
       await safeTable('products')
@@ -241,7 +247,7 @@ export const FarmerBids = () => {
             {bids.map((bid) => (
               <Card key={bid.id}>
                 <CardHeader>
-                  <CardTitle>{bid.product.name}</CardTitle>
+                  <CardTitle>{bid.product?.name || 'Unknown Product'}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">

@@ -1,8 +1,9 @@
 
 import { useState, useEffect, useCallback } from "react";
-import { supabase, safeTable } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "./use-toast";
+import { ensureType, safeTable } from "@/utils/supabaseUtils";
 
 export interface PriceAlert {
   id: string;
@@ -28,14 +29,20 @@ export const usePriceAlerts = () => {
       setLoading(true);
       
       // Using the safe table access helper
-      const { data, error: fetchError } = await safeTable<PriceAlert>('price_alerts')
+      const { data, error: fetchError } = await safeTable('price_alerts')
         .select('*')
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false });
       
       if (fetchError) throw fetchError;
       
-      setAlerts(data as PriceAlert[]);
+      // Safely convert the result to our expected type
+      if (data) {
+        setAlerts(ensureType<PriceAlert>(data));
+      } else {
+        setAlerts([]);
+      }
+      
       setLoading(false);
     } catch (err) {
       console.error('Error fetching price alerts:', err);
@@ -54,14 +61,15 @@ export const usePriceAlerts = () => {
         status: alert.status || 'active'
       };
       
-      const { data, error: createError } = await safeTable<PriceAlert>('price_alerts')
+      const { data, error: createError } = await safeTable('price_alerts')
         .insert(newAlert)
         .select();
       
       if (createError) throw createError;
       
       if (data && data.length > 0) {
-        setAlerts(prev => [(data[0] as PriceAlert), ...prev]);
+        const newAlertTyped = data[0] as PriceAlert;
+        setAlerts(prev => [newAlertTyped, ...prev]);
         
         toast({
           title: "Alert Created",
@@ -69,7 +77,7 @@ export const usePriceAlerts = () => {
           variant: "default"
         });
         
-        return data[0] as PriceAlert;
+        return newAlertTyped;
       }
       
       return null;
@@ -86,7 +94,7 @@ export const usePriceAlerts = () => {
 
   const deleteAlert = useCallback(async (alertId: string) => {
     try {
-      const { error: deleteError } = await safeTable<PriceAlert>('price_alerts')
+      const { error: deleteError } = await safeTable('price_alerts')
         .delete()
         .eq('id', alertId);
       
@@ -116,7 +124,7 @@ export const usePriceAlerts = () => {
     try {
       const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
       
-      const { error: updateError } = await safeTable<PriceAlert>('price_alerts')
+      const { error: updateError } = await safeTable('price_alerts')
         .update({ status: newStatus })
         .eq('id', alertId);
       

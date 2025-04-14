@@ -1,6 +1,7 @@
 
 import { supabase, safeTable } from '@/integrations/supabase/client';
 import { Appointment, CreateAppointmentDto, UpdateAppointmentDto } from '../types/appointment';
+import { ensureType } from '@/utils/supabaseUtils';
 
 export const appointmentService = {
   async createAppointment(appointment: CreateAppointmentDto): Promise<Appointment> {
@@ -35,7 +36,7 @@ export const appointmentService = {
       .order('appointment_date', { ascending: true });
 
     if (error) throw error;
-    return data as unknown as Appointment[];
+    return ensureType<Appointment>(data);
   },
 
   async getTraderAppointments(traderId: string): Promise<Appointment[]> {
@@ -46,7 +47,7 @@ export const appointmentService = {
       .order('appointment_date', { ascending: true });
 
     if (error) throw error;
-    return data as unknown as Appointment[];
+    return ensureType<Appointment>(data);
   },
 
   async updateAppointment(id: string, updates: UpdateAppointmentDto): Promise<Appointment> {
@@ -58,7 +59,7 @@ export const appointmentService = {
       .single();
 
     if (error) throw error;
-    return data as unknown as Appointment;
+    return data as Appointment;
   },
 
   async deleteAppointment(id: string): Promise<void> {
@@ -79,7 +80,7 @@ export const appointmentService = {
       .single();
 
     if (error) throw error;
-    return data as unknown as Appointment;
+    return data as Appointment;
   },
 
   async getUpcomingAppointments(userId: string, role: 'farmer' | 'trader'): Promise<Appointment[]> {
@@ -92,6 +93,6 @@ export const appointmentService = {
       .order('appointment_date', { ascending: true });
 
     if (error) throw error;
-    return data as unknown as Appointment[];
+    return ensureType<Appointment>(data);
   }
 };

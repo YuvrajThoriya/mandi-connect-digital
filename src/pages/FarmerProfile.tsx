@@ -8,24 +8,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarIcon, CheckCheck, Copy, File, FilePlus, ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from '@/lib/utils';
 import { safeTable } from '@/integrations/supabase/client';
-
-interface Document {
-  id: string;
-  user_id: string;
-  name: string;
-  type: string;
-  url: string;
-  size: number;
-  created_at: string;
-}
+import { ensureType } from '@/utils/supabaseUtils';
+import { Document } from '@/types/document';
 
 const FarmerProfile = () => {
   const navigate = useNavigate();
@@ -67,29 +59,35 @@ const FarmerProfile = () => {
     const fetchDocuments = async () => {
       if (!profile?.id) return;
     
-    try {
-      setLoadingDocs(true);
-      const { data, error } = await safeTable('documents')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false });
+      try {
+        setLoadingDocs(true);
+        const { data, error } = await safeTable('documents')
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
         
-      if (error) throw error;
-      setDocuments(data || []);
-    } catch (error) {
-      console.error('Error fetching documents:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load your documents',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoadingDocs(false);
-    }
-  };
+        if (data) {
+          const typedData = ensureType<Document>(data);
+          setDocuments(typedData);
+        } else {
+          setDocuments([]);
+        }
+      } catch (error) {
+        console.error('Error fetching documents:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load your documents',
+          variant: 'destructive'
+        });
+      } finally {
+        setLoadingDocs(false);
+      }
+    };
 
-  fetchDocuments();
-}, [profile?.id]);
+    fetchDocuments();
+  }, [profile?.id]);
 
   const handleEditProfile = () => {
     setIsEditing(true);
@@ -155,59 +153,63 @@ const FarmerProfile = () => {
   };
 
   const handleUploadDocument = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!newDocument.name || !newDocument.url || !newDocument.type) {
-    toast({
-      title: 'Missing Information',
-      description: 'Please fill out all fields',
-      variant: 'destructive'
-    });
-    return;
-  }
-
-  try {
-    setUploadingDoc(true);
-    const { error } = await safeTable('documents')
-      .insert({
-        user_id: profile?.id,
-        name: newDocument.name,
-        type: newDocument.type,
-        url: newDocument.url,
-        size: 0 // We could fetch the actual size if needed
+    e.preventDefault();
+    if (!newDocument.name || !newDocument.url || !newDocument.type) {
+      toast({
+        title: 'Missing Information',
+        description: 'Please fill out all fields',
+        variant: 'destructive'
       });
+      return;
+    }
 
-    if (error) throw error;
-    
-    setNewDocument({
-      name: '',
-      type: '',
-      url: ''
-    });
-    
-    // Refresh documents
-    const { data: updatedDocs, error: fetchError } = await safeTable('documents')
-      .select('*')
-      .eq('user_id', profile?.id)
-      .order('created_at', { ascending: false });
+    try {
+      setUploadingDoc(true);
+      const { error } = await safeTable('documents')
+        .insert({
+          user_id: profile?.id,
+          name: newDocument.name,
+          type: newDocument.type,
+          url: newDocument.url,
+          size: 0 // We could fetch the actual size if needed
+        });
+
+      if (error) throw error;
       
-    if (fetchError) throw fetchError;
-    setDocuments(updatedDocs || []);
-    
-    toast({
-      title: 'Document Uploaded',
-      description: 'Your document has been uploaded successfully',
-    });
-  } catch (error) {
-    console.error('Error uploading document:', error);
-    toast({
-      title: 'Upload Failed',
-      description: 'Failed to upload document. Please try again.',
-      variant: 'destructive'
-    });
-  } finally {
-    setUploadingDoc(false);
-  }
-};
+      setNewDocument({
+        name: '',
+        type: '',
+        url: ''
+      });
+      
+      // Refresh documents
+      const { data: updatedDocs, error: fetchError } = await safeTable('documents')
+        .select('*')
+        .eq('user_id', profile?.id)
+        .order('created_at', { ascending: false });
+        
+      if (fetchError) throw fetchError;
+      
+      if (updatedDocs) {
+        const typedData = ensureType<Document>(updatedDocs);
+        setDocuments(typedData);
+      }
+      
+      toast({
+        title: 'Document Uploaded',
+        description: 'Your document has been uploaded successfully',
+      });
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      toast({
+        title: 'Upload Failed',
+        description: 'Failed to upload document. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
 
   const handleDeleteDocument = async (documentId: string) => {
     try {
@@ -225,7 +227,13 @@ const FarmerProfile = () => {
         .order('created_at', { ascending: false });
         
       if (fetchError) throw fetchError;
-      setDocuments(updatedDocs || []);
+      
+      if (updatedDocs) {
+        const typedData = ensureType<Document>(updatedDocs);
+        setDocuments(typedData);
+      } else {
+        setDocuments([]);
+      }
 
       toast({
         title: 'Document Deleted',
