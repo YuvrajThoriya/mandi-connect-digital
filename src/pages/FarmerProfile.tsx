@@ -15,9 +15,17 @@ import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from '@/lib/utils';
-import { safeTable } from '@/integrations/supabase/client';
-import { ensureType } from '@/utils/supabaseUtils';
-import { Document } from '@/types/document';
+import { supabase } from '@/integrations/supabase/client';
+
+interface Document {
+  id: string;
+  user_id: string;
+  name: string;
+  type: string;
+  url: string;
+  size?: number;
+  created_at: string;
+}
 
 const FarmerProfile = () => {
   const navigate = useNavigate();
@@ -61,19 +69,15 @@ const FarmerProfile = () => {
     
       try {
         setLoadingDocs(true);
-        const { data, error } = await safeTable('documents')
+        const { data, error } = await supabase
+          .from('documents')
           .select('*')
           .eq('user_id', profile.id)
           .order('created_at', { ascending: false });
           
         if (error) throw error;
         
-        if (data) {
-          const typedData = ensureType<Document>(data);
-          setDocuments(typedData);
-        } else {
-          setDocuments([]);
-        }
+        setDocuments(data || []);
       } catch (error) {
         console.error('Error fetching documents:', error);
         toast({
@@ -107,7 +111,8 @@ const FarmerProfile = () => {
     try {
       if (!user || !profile) return;
 
-      const { error } = await safeTable('profiles')
+      const { error } = await supabase
+        .from('profiles')
         .update({
           name: name,
           phone: phone,
@@ -120,7 +125,6 @@ const FarmerProfile = () => {
 
       if (error) throw error;
 
-      // Update the auth context profile
       updateProfile({
         ...profile,
         name: name,
@@ -165,13 +169,14 @@ const FarmerProfile = () => {
 
     try {
       setUploadingDoc(true);
-      const { error } = await safeTable('documents')
+      const { error } = await supabase
+        .from('documents')
         .insert({
           user_id: profile?.id,
           name: newDocument.name,
           type: newDocument.type,
           url: newDocument.url,
-          size: 0 // We could fetch the actual size if needed
+          size: 0
         });
 
       if (error) throw error;
@@ -182,18 +187,15 @@ const FarmerProfile = () => {
         url: ''
       });
       
-      // Refresh documents
-      const { data: updatedDocs, error: fetchError } = await safeTable('documents')
+      const { data: updatedDocs, error: fetchError } = await supabase
+        .from('documents')
         .select('*')
         .eq('user_id', profile?.id)
         .order('created_at', { ascending: false });
         
       if (fetchError) throw fetchError;
       
-      if (updatedDocs) {
-        const typedData = ensureType<Document>(updatedDocs);
-        setDocuments(typedData);
-      }
+      setDocuments(updatedDocs || []);
       
       toast({
         title: 'Document Uploaded',
@@ -214,26 +216,22 @@ const FarmerProfile = () => {
   const handleDeleteDocument = async (documentId: string) => {
     try {
       setLoadingDocs(true);
-      const { error } = await safeTable('documents')
+      const { error } = await supabase
+        .from('documents')
         .delete()
         .eq('id', documentId);
 
       if (error) throw error;
 
-      // Refresh documents
-      const { data: updatedDocs, error: fetchError } = await safeTable('documents')
+      const { data: updatedDocs, error: fetchError } = await supabase
+        .from('documents')
         .select('*')
         .eq('user_id', profile?.id)
         .order('created_at', { ascending: false });
         
       if (fetchError) throw fetchError;
       
-      if (updatedDocs) {
-        const typedData = ensureType<Document>(updatedDocs);
-        setDocuments(typedData);
-      } else {
-        setDocuments([]);
-      }
+      setDocuments(updatedDocs || []);
 
       toast({
         title: 'Document Deleted',

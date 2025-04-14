@@ -167,7 +167,8 @@ export function ensureObjectWithProperty<T extends object, K extends PropertyKey
 // Get categories helper
 export const getCategories = async () => {
   try {
-    const response = await safeTable('categories').select('*');
+    // @ts-ignore - Allow string tableName
+    const response = await supabase.from('categories').select('*');
     if (response.data) {
       return { data: response.data as any[], error: null };
     }

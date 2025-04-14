@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { queryTable, getCategories } from '@/utils/supabaseUtils';
+import { queryTable } from '@/utils/supabaseUtils';
 
 interface Product {
   id: string;
@@ -71,7 +70,7 @@ const FarmerProducts = () => {
 
   const fetchAllCategories = async () => {
     try {
-      const { data, error } = await getCategories();
+      const { data, error } = await safeTable('categories').select('*');
       if (error) throw error;
       if (data) {
         const categoryNames = data.map((cat: any) => cat.name || cat.category_name || '');
@@ -79,6 +78,7 @@ const FarmerProducts = () => {
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories(['Cereals', 'Pulses', 'Fruits', 'Vegetables', 'Spices', 'Oilseeds']);
     }
   };
 
@@ -88,7 +88,8 @@ const FarmerProducts = () => {
       const productToCreate = {
         ...newProduct,
         farmer_id: user?.id,
-        farmer_name: user?.email?.split('@')[0] || 'Unknown Farmer', // Set a default farmer_name
+        farmer_name: user?.email?.split('@')[0] || 'Unknown Farmer',
+        location: newProduct.location || 'Unknown',
       };
 
       const { error } = await safeTable('products').insert(productToCreate);
