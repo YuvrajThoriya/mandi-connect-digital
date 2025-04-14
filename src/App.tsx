@@ -69,6 +69,12 @@ const App = () => (
               <Route path="/farmer/auctions/:id" element={<FarmerAuctionDetail />} />
               <Route path="/farmer/orders" element={<FarmerOrders />} />
               <Route path="/farmer/orders/:id" element={<FarmerOrderDetail />} />
+              <Route path="/farmer/appointments" element={<Appointments />} />
+              <Route path="/farmer/appointments/add" element={<AppointmentAdd />} />
+              <Route path="/farmer/appointments/:id" element={<AppointmentDetail />} />
+              <Route path="/farmer/notifications" element={<Notifications />} />
+              <Route path="/farmer/profile" element={<Profile />} />
+              <Route path="/farmer/settings" element={<Settings />} />
               
               {/* Trader Routes */}
               <Route path="/trader/dashboard" element={<TraderDashboard />} />
@@ -78,6 +84,12 @@ const App = () => (
               <Route path="/auctions/:id" element={<TraderAuctionDetail />} />
               <Route path="/trader/orders" element={<TraderOrders />} />
               <Route path="/trader/orders/:id" element={<TraderOrderDetail />} />
+              <Route path="/trader/appointments" element={<Appointments />} />
+              <Route path="/trader/appointments/add" element={<AppointmentAdd />} />
+              <Route path="/trader/appointments/:id" element={<AppointmentDetail />} />
+              <Route path="/trader/notifications" element={<Notifications />} />
+              <Route path="/trader/profile" element={<Profile />} />
+              <Route path="/trader/settings" element={<Settings />} />
               
               {/* Common Routes */}
               <Route path="/appointments" element={<Appointments />} />
