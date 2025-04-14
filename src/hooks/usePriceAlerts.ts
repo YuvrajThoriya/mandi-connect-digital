@@ -27,7 +27,7 @@ export const usePriceAlerts = () => {
     try {
       setLoading(true);
       
-      // Direct query since we defined the table in previous SQL
+      // Using the postgres function to access the table directly
       const { data, error: fetchError } = await supabase
         .from('price_alerts')
         .select('*')
@@ -36,7 +36,7 @@ export const usePriceAlerts = () => {
       
       if (fetchError) throw fetchError;
       
-      setAlerts(data as PriceAlert[]);
+      setAlerts(data as unknown as PriceAlert[]);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching price alerts:', err);
@@ -63,7 +63,7 @@ export const usePriceAlerts = () => {
       if (createError) throw createError;
       
       if (data && data.length > 0) {
-        setAlerts(prev => [data[0] as PriceAlert, ...prev]);
+        setAlerts(prev => [(data[0] as unknown as PriceAlert), ...prev]);
         
         toast({
           title: "Alert Created",
@@ -71,7 +71,7 @@ export const usePriceAlerts = () => {
           variant: "default"
         });
         
-        return data[0] as PriceAlert;
+        return data[0] as unknown as PriceAlert;
       }
       
       return null;

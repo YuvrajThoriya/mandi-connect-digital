@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -5,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DashboardSidebar } from '@/components/DashboardSidebar';
+import DashboardSidebar from '@/components/DashboardSidebar';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { getCategories } from '@/utils/supabaseUtils';
 
 interface ProductFormData {
   name: string;
@@ -16,13 +18,15 @@ interface ProductFormData {
   quantity: number;
   price: number;
   image_url: string;
+  quality: string;
+  location: string;
+  unit: string;
 }
 
 export const ProductForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user } = useAuth();
-  const [categories, setCategories] = useState<string[]>([]);
+  const { user, profile } = useAuth();
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     description: '',
@@ -30,7 +34,11 @@ export const ProductForm = () => {
     quantity: 0,
     price: 0,
     image_url: '',
+    quality: 'Standard',
+    location: '',
+    unit: 'kg'
   });
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -41,16 +49,8 @@ export const ProductForm = () => {
   }, [id]);
 
   const fetchCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('name');
-
-      if (error) throw error;
-      setCategories(data?.map(cat => cat.name) || []);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
+    const cats = await getCategories();
+    setCategories(cats || ['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Other']);
   };
 
   const fetchProduct = async () => {
@@ -62,7 +62,7 @@ export const ProductForm = () => {
         .single();
 
       if (error) throw error;
-      setFormData(data);
+      setFormData(data as unknown as ProductFormData);
     } catch (error) {
       console.error('Error fetching product:', error);
     }
@@ -73,17 +73,44 @@ export const ProductForm = () => {
     setLoading(true);
 
     try {
+      if (!profile?.id) {
+        throw new Error('User not authenticated');
+      }
+      
       if (id) {
         const { error } = await supabase
           .from('products')
-          .update(formData)
+          .update({
+            name: formData.name,
+            description: formData.description,
+            category: formData.category,
+            quantity: formData.quantity,
+            price: formData.price,
+            image_url: formData.image_url,
+            quality: formData.quality,
+            location: formData.location,
+            unit: formData.unit
+          })
           .eq('id', id);
 
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('products')
-          .insert([{ ...formData, farmer_id: user?.id }]);
+          .insert([{
+            farmer_id: profile.id,
+            farmer_name: profile.name || 'Unknown farmer',
+            name: formData.name,
+            description: formData.description,
+            category: formData.category,
+            quantity: formData.quantity,
+            price: formData.price,
+            image_url: formData.image_url,
+            quality: formData.quality,
+            location: formData.location,
+            unit: formData.unit,
+            status: 'active'
+          }]);
 
         if (error) throw error;
       }
@@ -131,7 +158,6 @@ export const ProductForm = () => {
               name="description"
               value={formData.description}
               onChange={handleChange}
-              required
             />
           </div>
 
@@ -167,12 +193,62 @@ export const ProductForm = () => {
           </div>
 
           <div>
-            <Label htmlFor="price">Price</Label>
+            <Label htmlFor="unit">Unit</Label>
+            <Select
+              value={formData.unit}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, unit: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select unit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="kg">Kilogram (kg)</SelectItem>
+                <SelectItem value="g">Gram (g)</SelectItem>
+                <SelectItem value="lb">Pound (lb)</SelectItem>
+                <SelectItem value="ton">Ton</SelectItem>
+                <SelectItem value="piece">Piece</SelectItem>
+                <SelectItem value="dozen">Dozen</SelectItem>
+                <SelectItem value="crate">Crate</SelectItem>
+                <SelectItem value="box">Box</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="price">Price per {formData.unit}</Label>
             <Input
               id="price"
               name="price"
               type="number"
               value={formData.price}
+              onChange={handleChange}
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="quality">Quality</Label>
+            <Select
+              value={formData.quality}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, quality: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select quality" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Premium">Premium</SelectItem>
+                <SelectItem value="Standard">Standard</SelectItem>
+                <SelectItem value="Economy">Economy</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="location">Location</Label>
+            <Input
+              id="location"
+              name="location"
+              value={formData.location}
               onChange={handleChange}
               required
             />
@@ -185,7 +261,7 @@ export const ProductForm = () => {
               name="image_url"
               value={formData.image_url}
               onChange={handleChange}
-              required
+              placeholder="http://example.com/image.jpg"
             />
           </div>
 
@@ -205,4 +281,4 @@ export const ProductForm = () => {
       </main>
     </div>
   );
-}; 
+};

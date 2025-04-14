@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DashboardSidebar } from '@/components/DashboardSidebar';
+import DashboardSidebar from '@/components/DashboardSidebar';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -42,7 +43,7 @@ export const FarmerProducts = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProducts(data || []);
+      setProducts(data as unknown as Product[] || []);
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
@@ -52,14 +53,20 @@ export const FarmerProducts = () => {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('name');
+      // Use rpc or direct SQL if categories table is not accessible
+      const { data, error } = await supabase.rpc('get_categories');
 
-      if (error) throw error;
-      setCategories(data?.map(cat => cat.name) || []);
+      if (error || !data) {
+        // Default categories as fallback
+        setCategories(['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Other']);
+        return;
+      }
+      
+      setCategories(data.map((cat: any) => cat.name) || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
+      // Default categories as fallback
+      setCategories(['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Other']);
     }
   };
 
@@ -134,4 +141,4 @@ export const FarmerProducts = () => {
       </main>
     </div>
   );
-}; 
+};

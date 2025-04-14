@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { Appointment, CreateAppointmentDto, UpdateAppointmentDto } from '../types/appointment';
 
@@ -5,12 +6,16 @@ export const appointmentService = {
   async createAppointment(appointment: CreateAppointmentDto): Promise<Appointment> {
     const { data, error } = await supabase
       .from('appointments')
-      .insert([appointment])
+      .insert([{
+        ...appointment,
+        farmer_id: appointment.farmer_id || '',
+        status: 'upcoming'
+      }])
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Appointment;
   },
 
   async getAppointmentById(id: string): Promise<Appointment> {
@@ -21,7 +26,7 @@ export const appointmentService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Appointment;
   },
 
   async getFarmerAppointments(farmerId: string): Promise<Appointment[]> {
@@ -32,7 +37,7 @@ export const appointmentService = {
       .order('appointment_date', { ascending: true });
 
     if (error) throw error;
-    return data;
+    return data as unknown as Appointment[];
   },
 
   async getTraderAppointments(traderId: string): Promise<Appointment[]> {
@@ -43,7 +48,7 @@ export const appointmentService = {
       .order('appointment_date', { ascending: true });
 
     if (error) throw error;
-    return data;
+    return data as unknown as Appointment[];
   },
 
   async updateAppointment(id: string, updates: UpdateAppointmentDto): Promise<Appointment> {
@@ -55,7 +60,7 @@ export const appointmentService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Appointment;
   },
 
   async deleteAppointment(id: string): Promise<void> {
@@ -76,7 +81,7 @@ export const appointmentService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Appointment;
   },
 
   async getUpcomingAppointments(userId: string, role: 'farmer' | 'trader'): Promise<Appointment[]> {
@@ -89,6 +94,6 @@ export const appointmentService = {
       .order('appointment_date', { ascending: true });
 
     if (error) throw error;
-    return data;
+    return data as unknown as Appointment[];
   }
-}; 
+};

@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { Auction, CreateAuctionDto, UpdateAuctionDto } from '../types/auction';
 
@@ -5,12 +6,16 @@ export const auctionService = {
   async createAuction(auction: CreateAuctionDto): Promise<Auction> {
     const { data, error } = await supabase
       .from('auctions')
-      .insert([auction])
+      .insert([{
+        ...auction,
+        current_price: auction.start_price,
+        status: 'active'
+      }])
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Auction;
   },
 
   async getAuctionById(id: string): Promise<Auction> {
@@ -21,7 +26,7 @@ export const auctionService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Auction;
   },
 
   async getFarmerAuctions(farmerId: string): Promise<Auction[]> {
@@ -32,7 +37,7 @@ export const auctionService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data as unknown as Auction[];
   },
 
   async updateAuction(id: string, updates: UpdateAuctionDto): Promise<Auction> {
@@ -44,7 +49,7 @@ export const auctionService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Auction;
   },
 
   async deleteAuction(id: string): Promise<void> {
@@ -64,7 +69,7 @@ export const auctionService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data as unknown as Auction[];
   },
 
   async endAuction(id: string): Promise<Auction> {
@@ -76,6 +81,6 @@ export const auctionService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Auction;
   }
-}; 
+};

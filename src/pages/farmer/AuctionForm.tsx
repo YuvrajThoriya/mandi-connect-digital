@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,11 @@ interface AuctionFormData {
   start_time: string;
   end_time: string;
   status: string;
+  description?: string;
+  auction_type?: string;
+  allow_auto_bids?: boolean;
+  visibility?: string;
+  shipping_options?: string;
 }
 
 interface Product {
@@ -27,7 +33,7 @@ interface Product {
 export const AuctionForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [formData, setFormData] = useState<AuctionFormData>({
     product_id: '',
@@ -38,6 +44,11 @@ export const AuctionForm = () => {
     start_time: '',
     end_time: '',
     status: 'active',
+    description: '',
+    auction_type: 'standard',
+    allow_auto_bids: true,
+    visibility: 'public',
+    shipping_options: 'seller'
   });
   const [loading, setLoading] = useState(false);
 
@@ -53,10 +64,10 @@ export const AuctionForm = () => {
       const { data, error } = await supabase
         .from('products')
         .select('id, name')
-        .eq('farmer_id', user?.id);
+        .eq('farmer_id', profile?.id);
 
       if (error) throw error;
-      setProducts(data || []);
+      setProducts(data as unknown as Product[] || []);
     } catch (error) {
       console.error('Error fetching products:', error);
     }
@@ -71,7 +82,7 @@ export const AuctionForm = () => {
         .single();
 
       if (error) throw error;
-      setFormData(data);
+      setFormData(data as unknown as AuctionFormData);
     } catch (error) {
       console.error('Error fetching auction:', error);
     }
@@ -85,14 +96,21 @@ export const AuctionForm = () => {
       if (id) {
         const { error } = await supabase
           .from('auctions')
-          .update(formData)
+          .update({
+            ...formData,
+            current_price: formData.start_price  // Ensure current_price is set
+          })
           .eq('id', id);
 
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('auctions')
-          .insert([{ ...formData, farmer_id: user?.id }]);
+          .insert([{ 
+            ...formData, 
+            farmer_id: profile?.id,
+            current_price: formData.start_price  // Set initial current_price to start_price
+          }]);
 
         if (error) throw error;
       }
@@ -129,6 +147,7 @@ export const AuctionForm = () => {
             <Select
               value={formData.product_id}
               onValueChange={(value) => setFormData(prev => ({ ...prev, product_id: value }))}
+              disabled={!!id}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select product" />
@@ -215,6 +234,33 @@ export const AuctionForm = () => {
             />
           </div>
 
+          <div>
+            <Label htmlFor="description">Description</Label>
+            <Input
+              id="description"
+              name="description"
+              value={formData.description || ''}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="auction_type">Auction Type</Label>
+            <Select
+              value={formData.auction_type || 'standard'}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, auction_type: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select auction type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standard">Standard</SelectItem>
+                <SelectItem value="dutch">Dutch</SelectItem>
+                <SelectItem value="sealed">Sealed Bid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex gap-2">
             <Button type="submit" disabled={loading}>
               {loading ? 'Saving...' : 'Save Auction'}
@@ -231,4 +277,4 @@ export const AuctionForm = () => {
       </main>
     </div>
   );
-}; 
+};

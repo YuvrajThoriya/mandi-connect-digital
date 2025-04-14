@@ -1,16 +1,42 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { Order, CreateOrderDto, UpdateOrderDto } from '../types/order';
 
 export const orderService = {
-  async createOrder(order: CreateOrderDto): Promise<Order> {
+  async createOrder(orderData: CreateOrderDto): Promise<Order> {
+    // Calculate total amount
+    const totalAmount = orderData.quantity * orderData.price;
+    
+    // Get the farmer_id from the product
+    const { data: productData } = await supabase
+      .from('products')
+      .select('farmer_id')
+      .eq('id', orderData.product_id)
+      .single();
+    
+    if (!productData?.farmer_id) {
+      throw new Error('Product not found');
+    }
+    
     const { data, error } = await supabase
       .from('orders')
-      .insert([order])
+      .insert([{
+        product_id: orderData.product_id,
+        quantity: orderData.quantity,
+        price: orderData.price,
+        total_amount: totalAmount,
+        trader_id: supabase.auth.getUser().then(res => res.data.user?.id) || '',
+        farmer_id: productData.farmer_id,
+        shipping_address: orderData.shipping_address || '',
+        notes: orderData.notes || '',
+        status: 'pending',
+        payment_status: 'pending'
+      }])
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Order;
   },
 
   async getOrderById(id: string): Promise<Order> {
@@ -21,7 +47,7 @@ export const orderService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Order;
   },
 
   async getFarmerOrders(farmerId: string): Promise<Order[]> {
@@ -32,7 +58,7 @@ export const orderService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data as unknown as Order[];
   },
 
   async getTraderOrders(traderId: string): Promise<Order[]> {
@@ -43,7 +69,7 @@ export const orderService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data as unknown as Order[];
   },
 
   async updateOrder(id: string, updates: UpdateOrderDto): Promise<Order> {
@@ -55,7 +81,7 @@ export const orderService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Order;
   },
 
   async deleteOrder(id: string): Promise<void> {
@@ -76,7 +102,7 @@ export const orderService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Order;
   },
 
   async updatePaymentStatus(id: string, paymentStatus: string): Promise<Order> {
@@ -88,6 +114,6 @@ export const orderService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Order;
   }
-}; 
+};
