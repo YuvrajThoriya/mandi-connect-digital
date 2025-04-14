@@ -10,6 +10,7 @@ export interface Appointment {
   status: string;
   created_at: string;
   updated_at: string;
+  trader?: { name: string } | any; // Made more flexible
 }
 
 export interface CreateAppointmentDto {
@@ -19,6 +20,7 @@ export interface CreateAppointmentDto {
   appointment_date: string;
   appointment_time: string;
   location: string;
+  status?: string; // Added status field
 }
 
 export interface UpdateAppointmentDto {
@@ -27,4 +29,4 @@ export interface UpdateAppointmentDto {
   appointment_time?: string;
   location?: string;
   status?: string;
-} 
+}

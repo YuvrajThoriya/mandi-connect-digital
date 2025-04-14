@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import DashboardSidebar from '@/components/DashboardSidebar';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { safeTable } from '@/integrations/supabase/client';
+import { queryTable, insertIntoTable } from '@/utils/supabaseUtils';
+import { ensureObjectWithProperty } from '@/utils/supabaseUtils';
 
 interface Order {
   id: string;
@@ -38,9 +40,8 @@ export const FarmerOrders = () => {
 
   const fetchOrders = async () => {
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
+      const { data, error } = await queryTable<any>('orders',
+        table => table.select(`
           *,
           product:products(
             name,
@@ -51,10 +52,25 @@ export const FarmerOrders = () => {
           )
         `)
         .eq('farmer_id', user?.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+      );
 
       if (error) throw error;
-      setOrders(data || []);
+      
+      if (data) {
+        const processedOrders = data.map((order: any) => {
+          const product = ensureObjectWithProperty(order.product, 'name', { name: 'Unknown Product', image_url: '' });
+          const trader = ensureObjectWithProperty(order.trader, 'name', { name: 'Unknown Trader' });
+          
+          return {
+            ...order,
+            product,
+            trader
+          };
+        });
+        
+        setOrders(processedOrders);
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
@@ -64,29 +80,23 @@ export const FarmerOrders = () => {
 
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from('orders')
+      const { error } = await safeTable('orders')
         .update({ status: newStatus })
         .eq('id', orderId);
 
       if (error) throw error;
 
-      // Create a notification for the trader
       const order = orders.find(o => o.id === orderId);
       if (order) {
-        const { error: notificationError } = await supabase
-          .from('notifications')
-          .insert([{
-            user_id: order.trader_id,
-            title: 'Order Status Updated',
-            message: `Order #${orderId} status has been updated to ${newStatus}`,
-            type: 'order',
-            metadata: {
-              order_id: orderId
-            }
-          }]);
-
-        if (notificationError) throw notificationError;
+        await insertIntoTable('notifications', {
+          user_id: order.trader_id,
+          title: 'Order Status Updated',
+          message: `Order #${orderId} status has been updated to ${newStatus}`,
+          type: 'order',
+          metadata: {
+            order_id: orderId
+          }
+        });
       }
 
       fetchOrders();
@@ -151,4 +161,4 @@ export const FarmerOrders = () => {
       </main>
     </div>
   );
-}; 
+};

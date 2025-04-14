@@ -1,687 +1,429 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "../integrations/supabase/client";
-import { useAuth } from "../context/AuthContext";
-import DashboardLayout from "../components/dashboard/DashboardLayout";
-import DashboardHeader from "../components/dashboard/DashboardHeader";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
-import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
-import { Progress } from "../components/ui/progress";
-import { Gavel, Calendar, MapPin, Package, Tag, Clock, ArrowLeft, ArrowBigUp, User, UserCheck } from "lucide-react";
-import { Separator } from "../components/ui/separator";
-import { Label } from "../components/ui/label";
-import { useToast } from "../hooks/use-toast";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
-import { Loader2 } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, ArrowLeft, Gavel, Tag, MapPin, ShoppingCart, AlertTriangle } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
+import BidList from "@/components/auction/BidList";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
-import { formatCurrency } from "../lib/utils";
-import BidHistory from "../components/BidHistory";
-import BidManagement from "../components/BidManagement";
-
-interface Profile {
-  id: string;
-  name: string | null;
-  phone: string | null;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  role: string;
-}
-
-interface Bid {
-  id: string;
-  bidder_id: string;
-  bidder_name: string;
-  amount: number;
-  quantity: number;
-  status: 'pending' | 'accepted' | 'rejected' | 'outbid';
-  is_highest_bid: boolean;
-  previous_bid_amount: number | null;
-  expires_at: string;
-  auction_end_time: string;
-  created_at: string;
-  message?: string;
-}
-
-interface Product {
-  name: string;
-  category: string;
-  description: string | null;
-  quantity: number;
-  unit: string;
-  price: number;
-  location: string;
-  image_url: string | null;
-}
-
-interface DatabaseAuction {
-  id: string;
-  product_id: string;
-  farmer_id: string;
-  start_price: number;
-  current_price: number;
-  reserve_price: number | null;
-  min_increment: number;
-  quantity: number;
-  start_time: string;
-  end_time: string;
-  description: string | null;
-  auction_type: string;
-  allow_auto_bids: boolean;
-  visibility: string;
-  shipping_options: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Auction {
-  id: string;
-  product_id: string;
-  farmer_id: string;
-  start_price: number;
-  current_price: number;
-  reserve_price: number | null;
-  min_increment: number;
-  quantity: number;
-  start_time: string;
-  end_time: string;
-  description: string | null;
-  auction_type: string;
-  allow_auto_bids: boolean;
-  visibility: string;
-  shipping_options: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  farmer_profile: Profile;
-  bids?: Bid[];
-  product: Product;
-}
-
-type BidAction = 'accept' | 'reject';
 
 const AuctionPage = () => {
-  const { id } = useParams();
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const [auction, setAuction] = useState<Auction | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { id } = useParams();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
-  const [bidAmount, setBidAmount] = useState("");
-  const [userRole, setUserRole] = useState<"farmer" | "trader">("trader");
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [auction, setAuction] = useState<any>(null);
+  const [product, setProduct] = useState<any>(null);
+  const [quantity, setQuantity] = useState("1");
+  const [bids, setBids] = useState<any[]>([]);
   const [isBidding, setIsBidding] = useState(false);
-  const [selectedBid, setSelectedBid] = useState<Bid | null>(null);
-  const [isProcessingBid, setIsProcessingBid] = useState(false);
-
-  // Function to fetch auction data
-  const fetchAuction = async () => {
-    try {
-      // First fetch the auction details
-      const { data: auctionData, error: auctionError } = await supabase
-        .from('auctions')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (auctionError) throw auctionError;
-
-      if (auctionData) {
-        // Then fetch the product separately
-        const { data: productData, error: productError } = await supabase
-          .from('products')
-          .select('id, name, category, description, quantity, unit, price, location, image_url')
-          .eq('id', auctionData.product_id)
-          .single();
-
-        if (productError) {
-          console.error('Error fetching product:', productError);
-          throw productError;
-        }
-
-        // Then fetch the farmer profile separately
-        let farmerProfile: Profile;
-        const { data: farmerData, error: farmerError } = await supabase
-          .from('profiles')
-          .select('id, name, phone, address, city, state, role')
-          .eq('id', auctionData.farmer_id)
-          .single();
-
-        if (farmerError) {
-          console.error('Error fetching farmer profile:', farmerError);
-          // Create a minimal default profile
-          farmerProfile = {
-            id: auctionData.farmer_id,
-            name: "Unknown Farmer",
-            phone: null,
-            address: null,
-            city: "Unknown",
-            state: "Unknown",
-            role: "farmer"
-          };
-        } else {
-          farmerProfile = farmerData as Profile;
-        }
-
-        // Then fetch the bids separately
-        const { data: bidsData, error: bidsError } = await supabase
-          .from('bids')
-          .select('id, bidder_id, bidder_name, amount, status, created_at')
-          .eq('product_id', auctionData.product_id)
-          .order('amount', { ascending: false });
-
-        if (bidsError) {
-          console.error('Error fetching bids:', bidsError);
-        }
-
-        // Create properly typed auction object
-        const transformedAuction: Auction = {
-          ...auctionData,
-          farmer_profile: farmerProfile,
-          bids: (bidsData || []) as Bid[],
-          product: productData
-        };
-        
-        setAuction(transformedAuction);
-        setLoading(false);
-      }
-    } catch (err: any) {
-      console.error('Error fetching auction:', err);
-      setLoading(false);
-      toast({
-        title: "Error",
-        description: err.message,
-        variant: "destructive"
-      });
-    }
-  };
+  const [bidAmount, setBidAmount] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    fetchAuction();
-    
-    // Set up a refresh interval for active auctions
-    const interval = window.setInterval(() => {
-      if (auction?.status === 'active') {
-        fetchAuction();
-      }
-    }, 10000); // Refresh every 10 seconds
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval);
+    const fetchAuction = async () => {
+      try {
+        setIsLoading(true);
+
+        // Fetch auction data
+        const { data: auctionData, error: auctionError } = await supabase
+          .from("auctions")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (auctionError) throw auctionError;
+        if (!auctionData) {
+          toast({
+            title: "Error",
+            description: "Auction not found",
+            variant: "destructive",
+          });
+          navigate("/trader-auctions");
+          return;
+        }
+        setAuction(auctionData);
+
+        // Fetch product data
+        const { data: productData, error: productError } = await supabase
+          .from("products")
+          .select("*")
+          .eq("id", auctionData.product_id)
+          .single();
+
+        if (productError) throw productError;
+        if (!productData) {
+          toast({
+            title: "Error",
+            description: "Product not found",
+            variant: "destructive",
+          });
+          navigate("/trader-auctions");
+          return;
+        }
+        setProduct(productData);
+
+        // Fetch bids
+        const { data: bidsData, error: bidsError } = await supabase
+          .from("bids")
+          .select("*")
+          .eq("auction_id", id)
+          .order("amount", { ascending: false });
+
+        if (bidsError) throw bidsError;
+        setBids(bidsData || []);
+      } catch (error: any) {
+        console.error("Error fetching auction:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description:
+            error.message || "Failed to fetch auction details. Please try again.",
+        });
+        navigate("/trader-auctions");
+      } finally {
+        setIsLoading(false);
       }
     };
-  }, [id]);
 
-  useEffect(() => {
-    const path = window.location.pathname;
-    if (path.includes("farmer")) {
-      setUserRole("farmer");
-    } else {
-      setUserRole("trader");
-    }
-  }, []);
+    if (id) fetchAuction();
+  }, [id, navigate, toast]);
 
-  const calculateTimeLeft = (endTime: string) => {
-    const end = new Date(endTime);
-    const now = new Date();
-    const diff = end.getTime() - now.getTime();
-    
-    if (diff <= 0) return "Auction ended";
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (days > 0) {
-      return `${days} days, ${hours} hours`;
-    } else if (hours > 0) {
-      return `${hours} hours, ${minutes} minutes`;
-    } else {
-      return `${minutes} minutes`;
-    }
-  };
-
-  const calculateProgress = (startTime: string, endTime: string) => {
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    const now = new Date();
-    
-    if (now < start) return 0;
-    if (now > end) return 100;
-    
-    const total = end.getTime() - start.getTime();
-    const elapsed = now.getTime() - start.getTime();
-    return Math.round((elapsed / total) * 100);
-  };
-
-  const formatTimeAgo = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    
-    const minutes = Math.floor(diff / (1000 * 60));
-    if (minutes < 60) {
-      return `${minutes} minutes ago`;
-    }
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    if (hours < 24) {
-      return `${hours} hours ago`;
-    }
-    return `${Math.floor(hours / 24)} days ago`;
-  };
-
-  const handleBid = async () => {
-    if (!auction || !profile || !bidAmount) return;
-
-    const bidValue = parseFloat(bidAmount);
-    if (isNaN(bidValue) || bidValue <= 0) {
-      toast({
-        title: "Invalid Bid",
-        description: "Please enter a valid bid amount.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if bid is higher than current price
-    if (bidValue <= auction.current_price) {
-      toast({
-        title: "Invalid Bid",
-        description: "Bid amount must be higher than current price.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if auction has ended
-    if (new Date() > new Date(auction.end_time)) {
-      toast({
-        title: "Auction Ended",
-        description: "This auction has already ended.",
-        variant: "destructive"
-      });
-      return;
-    }
+  const handleBid = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !auction || !product) return;
 
     setIsBidding(true);
-
     try {
-      // Get current highest bid
-      const { data: highestBid } = await supabase
-        .from('bids')
-        .select('*')
-        .eq('product_id', auction.product_id)
-        .eq('is_highest_bid', true)
-        .single();
-
-      // Update previous highest bid to outbid status if exists
-      if (highestBid) {
-        await supabase
-          .from('bids')
-          .update({ 
-            status: 'outbid',
-            is_highest_bid: false 
-          })
-          .eq('id', highestBid.id);
+      // Validate bid amount
+      const bidAmountNum = parseFloat(bidAmount);
+      if (isNaN(bidAmountNum) || bidAmountNum <= 0) {
+        throw new Error("Please enter a valid bid amount");
       }
 
-      // Insert the new bid
-      const { error: bidError } = await supabase
-        .from('bids')
-        .insert({
-          product_id: auction.product_id,
-          bidder_id: profile.id,
-          bidder_name: profile.name || '',
-          amount: bidValue,
-          quantity: auction.quantity,
-          status: 'pending',
-          is_highest_bid: true,
-          previous_bid_amount: highestBid?.amount || null,
-          expires_at: auction.end_time,
-          auction_end_time: auction.end_time
-        });
+      if (bidAmountNum <= auction.current_price) {
+        throw new Error("Bid amount must be greater than the current price");
+      }
 
-      if (bidError) throw bidError;
+      // Check if bid amount is within the allowed increment
+      if (auction.min_increment && (bidAmountNum - auction.current_price) < auction.min_increment) {
+        throw new Error(`Bid amount must be at least ${formatCurrency(auction.min_increment)} greater than the current price`);
+      }
+
+      // Create bid
+      const { data, error } = await supabase
+        .from("bids")
+        .insert({
+          product_id: product.id,
+          bidder_id: user.id,
+          bidder_name: profile?.name || "Anonymous",
+          amount: bidAmountNum,
+          message: message || null,
+          auction_id: auction.id,
+          quantity: quantity,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
 
       // Update auction current price
       const { error: updateError } = await supabase
-        .from('auctions')
-        .update({ current_price: bidValue })
-        .eq('id', auction.id);
+        .from("auctions")
+        .update({ current_price: bidAmountNum })
+        .eq("id", auction.id);
 
       if (updateError) throw updateError;
 
       toast({
-        title: "Bid Placed",
-        description: "Your bid has been successfully placed.",
+        title: "Success",
+        description: "Bid placed successfully",
+        variant: "default",
       });
 
+      // Refresh bids
+      const { data: bidsData, error: bidsError } = await supabase
+        .from("bids")
+        .select("*")
+        .eq("auction_id", id)
+        .order("amount", { ascending: false });
+
+      if (bidsError) throw bidsError;
+      setBids(bidsData || []);
+
+      // Clear form
       setBidAmount("");
-      await fetchAuction();
-    } catch (error) {
-      console.error('Error placing bid:', error);
+      setMessage("");
+    } catch (error: any) {
+      console.error("Error placing bid:", error);
       toast({
+        variant: "destructive",
         title: "Error",
-        description: "Failed to place bid. Please try again.",
-        variant: "destructive"
+        description: error.message || "Failed to place bid. Please try again.",
       });
     } finally {
       setIsBidding(false);
     }
   };
 
-  const handleBidAction = async (bid: Bid, action: BidAction) => {
-    setSelectedBid(bid);
-    setIsProcessingBid(true);
-
+  const handleCreateOrder = async () => {
     try {
-      // Update the bid status
-      const { error: bidError } = await supabase
-        .from('bids')
-        .update({
-          status: action === 'accept' ? 'accepted' : 'rejected',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', bid.id);
+      // Calculate the total amount based on price and quantity
+    const total_amount = product.price * quantity;
 
-      if (bidError) throw bidError;
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        product_id: product.id,
+        farmer_id: auction.farmer_id,
+        trader_id: user.id,
+        quantity: quantity,
+        price: product.price,
+        total_amount: total_amount, // Added the total_amount field
+        status: 'pending',
+        payment_status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
 
-      if (action === 'accept') {
-        // Update all other bids to rejected
-        const { error: otherBidsError } = await supabase
-          .from('bids')
-          .update({
-            status: 'rejected',
-            updated_at: new Date().toISOString()
-          })
-          .eq('product_id', auction?.product_id)
-          .neq('id', bid.id);
-
-        if (otherBidsError) throw otherBidsError;
-
-        // Update auction status to 'ended'
-        const { error: auctionError } = await supabase
-          .from('auctions')
-          .update({
-            status: 'ended',
-            current_price: bid.amount,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', id);
-
-        if (auctionError) throw auctionError;
-
-        // Create an order for the accepted bid
-        const { error: orderError } = await supabase
-          .from('orders')
-          .insert({
-            product_id: auction?.product_id,
-            farmer_id: auction?.farmer_id,
-            trader_id: bid.bidder_id,
-            quantity: bid.quantity,
-            price: bid.amount,
-            status: 'pending',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-
-        if (orderError) throw orderError;
-      }
-
-      // Refresh auction data
-      await fetchAuction();
+    if (orderError) throw orderError;
 
       toast({
-        title: action === 'accept' ? "Bid Accepted" : "Bid Rejected",
-        description: action === 'accept' 
-          ? "The bid has been accepted and the auction has ended."
-          : "The bid has been rejected.",
-        variant: "default"
+        title: "Success",
+        description: "Order created successfully",
+        variant: "default",
       });
-
+      navigate(`/trader-orders/${data.id}`);
     } catch (error: any) {
-      console.error(`Error ${action}ing bid:`, error);
+      console.error("Error creating order:", error);
       toast({
+        variant: "destructive",
         title: "Error",
-        description: `Failed to ${action} bid: ${error.message}`,
-        variant: "destructive"
+        description:
+          error.message || "Failed to create order. Please try again.",
       });
-    } finally {
-      setIsProcessingBid(false);
-      setSelectedBid(null);
     }
   };
 
-  if (loading) return (
-    <DashboardLayout userRole={userRole}>
-      <div className="flex items-center justify-center h-[80vh]">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
-          <p>Loading auction details...</p>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
-  
-  if (!auction) return (
-    <DashboardLayout userRole={userRole}>
-      <div className="flex items-center justify-center h-[80vh]">
-        <div className="text-center">
-          <p className="mb-4">Auction not found</p>
-          <Button variant="outline" onClick={() => navigate(-1)}>Go Back</Button>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
-
-  const isTrader = profile?.role === "trader";
-  const isFarmer = profile?.role === "farmer" && profile.id === auction.farmer_id;
-  const isActive = auction.status === "active";
-  const timeLeft = formatDistanceToNow(new Date(auction.end_time), { addSuffix: true });
-
-  return (
-    <DashboardLayout userRole={userRole}>
-      <DashboardHeader 
-        title="Auction Details" 
-        userName={profile?.name || ""} 
-        userRole={userRole}
-      />
-      
-      {loading ? (
-        <div className="flex justify-center items-center h-[calc(100vh-200px)]">
+  if (!auction || !product) {
+    return (
+      <DashboardLayout userRole="trader">
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
-      ) : !auction ? (
-        <div className="flex justify-center items-center h-[calc(100vh-200px)]">
-          <p>Auction not found</p>
-        </div>
-      ) : (
-        <div className="container mx-auto p-6">
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Left Column - Main Auction Details */}
-            <div className="space-y-6">
-              <Card className="border-0 shadow-lg">
-                <CardHeader className="pb-4">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <CardTitle className="text-2xl font-bold">{auction.product.name}</CardTitle>
-                      <CardDescription className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        Listed by {auction.farmer_profile.name}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="secondary" className="text-base px-4 py-1">
-                      {auction.product.category}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-8">
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Quantity</Label>
-                      <p className="text-xl font-medium flex items-center gap-2">
-                        <Package className="h-5 w-5 text-muted-foreground" />
-                        {auction.quantity} {auction.product.unit}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Location</Label>
-                      <p className="text-xl font-medium flex items-center gap-2">
-                        <MapPin className="h-5 w-5 text-muted-foreground" />
-                        {auction.product.location}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-muted-foreground">Starting Price</Label>
-                        <p className="text-lg font-medium">{formatCurrency(auction.start_price)}</p>
-                      </div>
-                      <div>
-                        <Label className="text-muted-foreground">Current Price</Label>
-                        <p className="text-2xl font-bold text-primary">{formatCurrency(auction.current_price)}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Minimum Increment</Label>
-                      <p className="text-lg font-medium">{formatCurrency(auction.min_increment)}</p>
-                    </div>
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <Label className="text-muted-foreground">Time Left</Label>
-                      <span className="flex items-center gap-2 text-lg font-medium">
-                        <Clock className="h-5 w-5 text-muted-foreground" />
-                        {calculateTimeLeft(auction.end_time)}
-                      </span>
-                    </div>
-                    <Progress value={calculateProgress(auction.start_time, auction.end_time)} className="h-2" />
-                  </div>
-                  
-                  {userRole === "trader" && (
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button className="w-full h-12 text-lg" disabled={isBidding}>
-                          {isBidding ? (
-                            <>
-                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                              Placing Bid...
-                            </>
-                          ) : (
-                            <>
-                              <Gavel className="mr-2 h-5 w-5" />
-                              Place Bid
-                            </>
-                          )}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>Place a Bid</DialogTitle>
-                          <DialogDescription>
-                            Enter your bid amount for {auction.product.name}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-6 py-4">
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                              <div>
-                                <Label>Current Price</Label>
-                                <p className="font-medium">{formatCurrency(auction.current_price)}</p>
-                              </div>
-                              <div>
-                                <Label>Minimum Increment</Label>
-                                <p className="font-medium">{formatCurrency(auction.min_increment)}</p>
-                              </div>
-                            </div>
-                            <div>
-                              <Label>Minimum Bid Required</Label>
-                              <p className="font-medium text-lg">{formatCurrency(auction.current_price + auction.min_increment)}</p>
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="bidAmount">Your Bid Amount</Label>
-                            <Input
-                              id="bidAmount"
-                              type="number"
-                              step="0.01"
-                              value={bidAmount}
-                              onChange={(e) => setBidAmount(e.target.value)}
-                              placeholder="Enter bid amount"
-                              className="text-lg"
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button onClick={handleBid} disabled={isBidding} className="w-full">
-                            {isBidding ? (
-                              <>
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                Placing Bid...
-                              </>
-                            ) : (
-                              "Confirm Bid"
-                            )}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+      </DashboardLayout>
+    );
+  }
 
-            {/* Right Column - Bid History and Management */}
-            <div className="space-y-6">
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-xl">Bid History</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <BidHistory bids={auction.bids || []} />
-                </CardContent>
-              </Card>
-              
-              {isFarmer && (
-                <Card className="border-0 shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="text-xl">Manage Bids</CardTitle>
-                    <CardDescription>
-                      Review and manage bids for this auction
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {auction.bids && auction.bids.length > 0 ? (
-                      <BidManagement
-                        bids={auction.bids}
-                        onAcceptBid={(bid) => handleBidAction(bid, 'accept')}
-                        onRejectBid={(bid) => handleBidAction(bid, 'reject')}
-                        disabled={!isFarmer || auction.status !== 'active'}
-                      />
-                    ) : (
-                      <div className="text-center py-8">
-                        <p className="text-muted-foreground">No bids have been placed yet</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
+  return (
+    <DashboardLayout userRole="trader">
+      <div className="mb-6">
+        <Button
+          variant="outline"
+          onClick={() => navigate(`/trader-auctions`)}
+          className="mb-4"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Auctions
+        </Button>
+
+        <DashboardHeader
+          title="Auction Details"
+          userName={profile?.name || "User"}
+          userRole="trader"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Auction Details</CardTitle>
+              <CardDescription>
+                Review the auction details and place your bid
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="bidAmount">Bid Amount *</Label>
+                  <Input
+                    id="bidAmount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={bidAmount}
+                    onChange={(e) => setBidAmount(e.target.value)}
+                    placeholder="Enter bid amount"
+                    required
+                  />
+                  {auction.min_increment && (
+                    <p className="text-sm text-muted-foreground">
+                      Minimum increment: {formatCurrency(auction.min_increment)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantity *</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    placeholder="Enter quantity"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="message">Additional Message</Label>
+                <Textarea
+                  id="message"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Add any additional notes or requirements"
+                />
+              </div>
+
+              <div className="rounded-md bg-muted p-4">
+                <div className="flex justify-between items-center">
+                  <div className="text-sm font-medium">Current Price</div>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(auction.current_price)}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button
+                onClick={handleBid}
+                className="w-full"
+                variant="purchase"
+                disabled={isBidding}
+              >
+                {isBidding ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Placing Bid...
+                  </>
+                ) : (
+                  <>
+                    <Gavel className="mr-2 h-4 w-4" />
+                    Place Bid
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Bids</CardTitle>
+              <CardDescription>
+                See the current bids for this auction
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BidList bids={bids} />
+            </CardContent>
+          </Card>
         </div>
-      )}
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Product Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">{product.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {product.category}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <Tag className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="text-sm font-medium">Price</div>
+                  <div className="text-sm text-muted-foreground">
+                    {formatCurrency(product.price)}/{product.unit}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="text-sm font-medium">Location</div>
+                  <div className="text-sm text-muted-foreground">
+                    {product.location}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Auction Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <Gavel className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="text-sm font-medium">Status</div>
+                  <div className="text-sm text-muted-foreground">
+                    {auction.status}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <Tag className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="text-sm font-medium">End Time</div>
+                  <div className="text-sm text-muted-foreground">
+                    {formatDistanceToNow(new Date(auction.end_time), {
+                      addSuffix: true,
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {auction.status === "active" ? (
+                <Button onClick={handleCreateOrder} variant="secondary">
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  Buy Now
+                </Button>
+              ) : (
+                <Badge variant="destructive">Auction Ended</Badge>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </DashboardLayout>
   );
 };

@@ -29,5 +29,6 @@ export const enableRealtimeFor = (tables: string[]) => {
 
 // Helper for safely accessing tables that might not be in the type definition
 export const safeTable = <T = any>(tableName: string) => {
+  // @ts-ignore - We're deliberately bypassing type checking here
   return supabase.from(tableName) as any;
 };

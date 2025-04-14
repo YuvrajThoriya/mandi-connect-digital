@@ -7,22 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import DashboardSidebar from '@/components/DashboardSidebar';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-
-interface Appointment {
-  id: string;
-  trader_id: string;
-  farmer_id: string;
-  title: string;
-  appointment_date: string;
-  appointment_time: string;
-  location: string;
-  status: string;
-  created_at: string;
-  trader: {
-    name: string;
-  };
-}
+import { safeTable } from '@/integrations/supabase/client';
+import { Appointment } from '@/types/appointment';
+import { queryTable, insertIntoTable } from '@/utils/supabaseUtils';
+import { ensureObjectWithProperty } from '@/utils/supabaseUtils';
 
 export const FarmerAppointments = () => {
   const navigate = useNavigate();
@@ -45,19 +33,33 @@ export const FarmerAppointments = () => {
 
   const fetchAppointments = async () => {
     try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select(`
+      const { data, error } = await queryTable<any>('appointments',
+        table => table.select(`
           *,
           trader:profiles(
             name
           )
         `)
         .eq('farmer_id', user?.id)
-        .order('appointment_date', { ascending: true });
+        .order('appointment_date', { ascending: true })
+      );
 
       if (error) throw error;
-      setAppointments(data || []);
+      
+      // Process data to ensure it follows the Appointment interface
+      if (data) {
+        const processedAppointments = data.map((appointment: any) => {
+          // Ensure trader has the right structure
+          const trader = ensureObjectWithProperty(appointment.trader, 'name', { name: 'Unknown Trader' });
+          
+          return {
+            ...appointment,
+            trader
+          };
+        });
+        
+        setAppointments(processedAppointments as Appointment[]);
+      }
     } catch (error) {
       console.error('Error fetching appointments:', error);
     } finally {
@@ -67,10 +69,9 @@ export const FarmerAppointments = () => {
 
   const fetchAvailableTraders = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .eq('role', 'trader');
+      const { data, error } = await queryTable<any>('profiles',
+        table => table.select('id, name').eq('role', 'trader')
+      );
 
       if (error) throw error;
       setAvailableTraders(data || []);
@@ -82,30 +83,24 @@ export const FarmerAppointments = () => {
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await supabase
-        .from('appointments')
-        .insert([{
-          ...newAppointment,
-          farmer_id: user?.id,
-          status: 'upcoming',
-        }]);
+      const { error } = await insertIntoTable('appointments', {
+        ...newAppointment,
+        farmer_id: user?.id,
+        status: 'upcoming',
+      });
 
       if (error) throw error;
 
       // Create a notification for the trader
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert([{
-          user_id: newAppointment.trader_id,
-          title: 'New Appointment Scheduled',
-          message: `An appointment has been scheduled for ${newAppointment.appointment_date} at ${newAppointment.appointment_time}`,
-          type: 'appointment',
-          metadata: {
-            trader_id: newAppointment.trader_id
-          }
-        }]);
-
-      if (notificationError) throw notificationError;
+      await insertIntoTable('notifications', {
+        user_id: newAppointment.trader_id,
+        title: 'New Appointment Scheduled',
+        message: `An appointment has been scheduled for ${newAppointment.appointment_date} at ${newAppointment.appointment_time}`,
+        type: 'appointment',
+        metadata: {
+          trader_id: newAppointment.trader_id
+        }
+      });
 
       setNewAppointment({
         trader_id: '',
@@ -122,8 +117,7 @@ export const FarmerAppointments = () => {
 
   const handleUpdateStatus = async (appointmentId: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from('appointments')
+      const { error } = await safeTable('appointments')
         .update({ status: newStatus })
         .eq('id', appointmentId);
 
@@ -132,19 +126,15 @@ export const FarmerAppointments = () => {
       // Create a notification for the trader
       const appointment = appointments.find(a => a.id === appointmentId);
       if (appointment) {
-        const { error: notificationError } = await supabase
-          .from('notifications')
-          .insert([{
-            user_id: appointment.trader_id,
-            title: 'Appointment Status Updated',
-            message: `Appointment status has been updated to ${newStatus}`,
-            type: 'appointment',
-            metadata: {
-              appointment_id: appointmentId
-            }
-          }]);
-
-        if (notificationError) throw notificationError;
+        await insertIntoTable('notifications', {
+          user_id: appointment.trader_id,
+          title: 'Appointment Status Updated',
+          message: `Appointment status has been updated to ${newStatus}`,
+          type: 'appointment',
+          metadata: {
+            appointment_id: appointmentId
+          }
+        });
       }
 
       fetchAppointments();
@@ -271,4 +261,4 @@ export const FarmerAppointments = () => {
       </main>
     </div>
   );
-}; 
+};

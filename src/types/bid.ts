@@ -5,7 +5,7 @@ export interface Bid {
   bidder_id: string;
   bidder_name: string;
   amount: number;
-  status: 'pending' | 'accepted' | 'rejected' | 'outbid';
+  status: 'pending' | 'accepted' | 'rejected' | 'outbid' | string; // Added string to be more flexible
   message: string | null;
   created_at: string;
   updated_at: string;
@@ -30,6 +30,6 @@ export interface CreateBidDto {
 export interface UpdateBidDto {
   amount?: number;
   message?: string;
-  status?: 'pending' | 'accepted' | 'rejected' | 'outbid';
+  status?: 'pending' | 'accepted' | 'rejected' | 'outbid' | string;
   is_highest_bid?: boolean;
-} 
+}

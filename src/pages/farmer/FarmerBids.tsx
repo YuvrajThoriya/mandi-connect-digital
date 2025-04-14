@@ -4,31 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import DashboardSidebar from '@/components/DashboardSidebar';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { safeTable } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/utils';
-
-interface Bid {
-  id: string;
-  product_id: string;
-  bidder_id: string;
-  bidder_name: string;
-  amount: number;
-  quantity: number;
-  status: 'pending' | 'accepted' | 'rejected' | 'outbid';
-  is_highest_bid: boolean;
-  previous_bid_amount: number | null;
-  expires_at: string;
-  auction_end_time: string;
-  created_at: string;
-  message?: string;
-  product: {
-    name: string;
-    image_url: string;
-    farmer_id: string;
-  };
-}
+import { Bid } from '@/types/bid';
+import { queryTable, insertIntoTable } from '@/utils/supabaseUtils';
 
 export const FarmerBids = () => {
   const navigate = useNavigate();
@@ -41,24 +22,21 @@ export const FarmerBids = () => {
     fetchBids();
 
     // Set up real-time subscription for bid updates
-    const channel = supabase
-      .channel('bids-changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'bids' }, 
-        () => { fetchBids(); }
-      )
+    const channel = safeTable('bids')
+      .on('INSERT', payload => { fetchBids(); })
+      .on('UPDATE', payload => { fetchBids(); })
+      .on('DELETE', payload => { fetchBids(); })
       .subscribe();
     
     return () => {
-      supabase.removeChannel(channel);
+      channel.unsubscribe();
     };
   }, []);
 
   const fetchBids = async () => {
     try {
-      const { data, error } = await supabase
-        .from('bids')
-        .select(`
+      const { data, error } = await queryTable<Bid & {product: any}>('bids',
+        table => table.select(`
           *,
           product:products(
             name,
@@ -67,10 +45,22 @@ export const FarmerBids = () => {
           )
         `)
         .eq('product.farmer_id', user?.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+      );
 
       if (error) throw error;
-      setBids(data || []);
+      
+      // Process data to ensure it matches the Bid type
+      if (data) {
+        const processedBids = data.map(bid => ({
+          ...bid,
+          status: bid.status || 'pending' // Ensure status has a value
+        })) as unknown as Bid[];
+        
+        setBids(processedBids);
+      } else {
+        setBids([]);
+      }
     } catch (error) {
       console.error('Error fetching bids:', error);
       toast({
@@ -86,8 +76,7 @@ export const FarmerBids = () => {
   const handleAcceptBid = async (bidId: string) => {
     try {
       // Start a transaction
-      const { error: updateError } = await supabase
-        .from('bids')
+      const { error: updateError } = await safeTable('bids')
         .update({ 
           status: 'accepted',
           is_highest_bid: false 
@@ -101,8 +90,7 @@ export const FarmerBids = () => {
       if (!bid) throw new Error('Bid not found');
 
       // Update all other bids for this product to rejected
-      await supabase
-        .from('bids')
+      await safeTable('bids')
         .update({ 
           status: 'rejected',
           is_highest_bid: false 
@@ -111,8 +99,7 @@ export const FarmerBids = () => {
         .neq('id', bidId);
 
       // Create an order from the accepted bid
-      const { error: orderError } = await supabase
-        .from('orders')
+      await safeTable('orders')
         .insert([{
           product_id: bid.product_id,
           trader_id: bid.bidder_id,
@@ -124,40 +111,28 @@ export const FarmerBids = () => {
           payment_status: 'pending'
         }]);
 
-      if (orderError) throw orderError;
-
       // Update product status
-      const { error: productError } = await supabase
-        .from('products')
+      await safeTable('products')
         .update({ status: 'sold' })
         .eq('id', bid.product_id);
 
-      if (productError) throw productError;
-
       // Update auction status
-      const { error: auctionError } = await supabase
-        .from('auctions')
+      await safeTable('auctions')
         .update({ status: 'completed' })
         .eq('product_id', bid.product_id);
 
-      if (auctionError) throw auctionError;
-
       // Create notification for the trader
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert([{
-          user_id: bid.bidder_id,
-          title: 'Bid Accepted',
-          message: `Your bid of ${formatCurrency(bid.amount)} for ${bid.product.name} has been accepted`,
-          type: 'bid',
-          metadata: {
-            bid_id: bidId,
-            product_id: bid.product_id,
-            order_id: bidId // Using bidId as orderId for now
-          }
-        }]);
-
-      if (notificationError) throw notificationError;
+      await insertIntoTable('notifications', {
+        user_id: bid.bidder_id,
+        title: 'Bid Accepted',
+        message: `Your bid of ${formatCurrency(bid.amount)} for ${bid.product?.name || 'a product'} has been accepted`,
+        type: 'bid',
+        metadata: {
+          bid_id: bidId,
+          product_id: bid.product_id,
+          order_id: bidId // Using bidId as orderId for now
+        }
+      });
 
       toast({
         title: "Bid Accepted",
@@ -180,8 +155,7 @@ export const FarmerBids = () => {
       const bid = bids.find(b => b.id === bidId);
       if (!bid) throw new Error('Bid not found');
 
-      const { error } = await supabase
-        .from('bids')
+      const { error } = await safeTable('bids')
         .update({ 
           status: 'rejected',
           is_highest_bid: false 
@@ -192,8 +166,7 @@ export const FarmerBids = () => {
 
       // If this was the highest bid, find the next highest bid and mark it as highest
       if (bid.is_highest_bid) {
-        const { data: nextHighestBid } = await supabase
-          .from('bids')
+        const { data: nextHighestBid } = await safeTable('bids')
           .select('*')
           .eq('product_id', bid.product_id)
           .eq('status', 'pending')
@@ -202,28 +175,23 @@ export const FarmerBids = () => {
           .single();
 
         if (nextHighestBid) {
-          await supabase
-            .from('bids')
+          await safeTable('bids')
             .update({ is_highest_bid: true })
             .eq('id', nextHighestBid.id);
         }
       }
 
       // Create a notification for the trader
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert([{
-          user_id: bid.bidder_id,
-          title: 'Bid Rejected',
-          message: `Your bid of ${formatCurrency(bid.amount)} for ${bid.product.name} has been rejected`,
-          type: 'bid',
-          metadata: {
-            bid_id: bidId,
-            product_id: bid.product_id
-          }
-        }]);
-
-      if (notificationError) throw notificationError;
+      await insertIntoTable('notifications', {
+        user_id: bid.bidder_id,
+        title: 'Bid Rejected',
+        message: `Your bid of ${formatCurrency(bid.amount)} for ${bid.product?.name || 'a product'} has been rejected`,
+        type: 'bid',
+        metadata: {
+          bid_id: bidId,
+          product_id: bid.product_id
+        }
+      });
 
       toast({
         title: "Bid Rejected",
@@ -318,4 +286,4 @@ export const FarmerBids = () => {
       </main>
     </div>
   );
-}; 
+};
