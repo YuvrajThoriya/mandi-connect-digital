@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -157,7 +158,9 @@ const Settings = () => {
   };
 
   // Get appropriate user role, default to "trader" if not available
-  const userRole = profile?.role || "trader";
+  const userRole = (profile?.role === "farmer" || profile?.role === "trader") 
+    ? profile.role 
+    : "trader" as "farmer" | "trader";
 
   return (
     <DashboardLayout userRole={userRole}>
