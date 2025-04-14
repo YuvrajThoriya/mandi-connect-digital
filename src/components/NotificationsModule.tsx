@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
+// Define a type for our notifications
 interface Notification {
   id: string;
   user_id: string;
@@ -21,6 +22,30 @@ interface Notification {
   created_at: string;
 }
 
+// Mock notifications for development until the table is created
+const MOCK_NOTIFICATIONS: Notification[] = [
+  {
+    id: '1',
+    user_id: 'current-user',
+    title: 'New bid received',
+    message: 'A trader placed a new bid on your wheat auction',
+    type: 'bid',
+    read: false,
+    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
+    metadata: { auction_id: 'abc123' }
+  },
+  {
+    id: '2',
+    user_id: 'current-user',
+    title: 'Order confirmed',
+    message: 'Order #12345 has been confirmed',
+    type: 'order',
+    read: true,
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), // 5 hours ago
+    metadata: { order_id: '12345' }
+  }
+];
+
 export const NotificationsModule = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -28,40 +53,48 @@ export const NotificationsModule = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [notificationsAvailable, setNotificationsAvailable] = useState(false);
 
   const fetchNotifications = async () => {
     if (!profile?.id) return;
     
     try {
-      // Check if notifications table exists first
-      const { count, error: checkError } = await supabase
-        .from('notification_settings')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', profile.id);
+      // For now, use mock notifications
+      // In the future, when the notifications table is created, uncomment the code below
+      /*
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
 
-      if (checkError) {
-        console.log('Notification settings table might not exist');
-        return;
-      }
-
-      // Now try to fetch notifications
-      try {
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', profile.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
-
-        if (error) throw error;
-        
-        setNotifications(data || []);
-        setUnreadCount(data?.filter(n => !n.read).length || 0);
-      } catch (error) {
-        console.log('Notifications table might not exist yet');
-      }
+      if (error) throw error;
+      
+      setNotifications(data || []);
+      setUnreadCount(data?.filter(n => !n.read).length || 0);
+      */
+      
+      // Use mock data for now
+      // Filter mock data to match current user
+      const filteredMockNotifications = MOCK_NOTIFICATIONS.map(n => ({
+        ...n,
+        user_id: profile.id
+      }));
+      
+      setNotifications(filteredMockNotifications);
+      setUnreadCount(filteredMockNotifications.filter(n => !n.read).length);
+      setNotificationsAvailable(true);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      // Use mock data as fallback
+      const filteredMockNotifications = MOCK_NOTIFICATIONS.map(n => ({
+        ...n,
+        user_id: profile?.id || ''
+      }));
+      
+      setNotifications(filteredMockNotifications);
+      setUnreadCount(filteredMockNotifications.filter(n => !n.read).length);
     } finally {
       setLoading(false);
     }
@@ -73,22 +106,11 @@ export const NotificationsModule = () => {
     try {
       if (id) {
         // Mark single notification as read
-        await supabase
-          .from('notifications')
-          .update({ read: true })
-          .eq('id', id);
-          
         setNotifications(prev => 
           prev.map(n => n.id === id ? { ...n, read: true } : n)
         );
       } else {
         // Mark all as read
-        await supabase
-          .from('notifications')
-          .update({ read: true })
-          .eq('user_id', profile.id)
-          .eq('read', false);
-          
         setNotifications(prev => 
           prev.map(n => ({ ...n, read: true }))
         );
@@ -99,6 +121,22 @@ export const NotificationsModule = () => {
       toast({
         description: id ? "Notification marked as read" : "All notifications marked as read",
       });
+      
+      // In the future, when the notifications table is created:
+      /*
+      if (id) {
+        await supabase
+          .from('notifications')
+          .update({ read: true })
+          .eq('id', id);
+      } else {
+        await supabase
+          .from('notifications')
+          .update({ read: true })
+          .eq('user_id', profile.id)
+          .eq('read', false);
+      }
+      */
     } catch (error) {
       console.error('Error marking notifications as read:', error);
     }
@@ -106,11 +144,6 @@ export const NotificationsModule = () => {
   
   const deleteNotification = async (id: string) => {
     try {
-      await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', id);
-        
       setNotifications(prev => prev.filter(n => n.id !== id));
       
       if (notifications.find(n => n.id === id)?.read === false) {
@@ -120,6 +153,14 @@ export const NotificationsModule = () => {
       toast({
         description: "Notification deleted",
       });
+      
+      // In the future, when the notifications table is created:
+      /*
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', id);
+      */
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
@@ -128,8 +169,35 @@ export const NotificationsModule = () => {
   useEffect(() => {
     fetchNotifications();
     
-    // Set up real-time subscription for notifications
-    if (profile?.id) {
+    // Mock real-time updates
+    const interval = setInterval(() => {
+      // Randomly add a new notification (1 in 20 chance)
+      if (Math.random() > 0.95 && profile?.id) {
+        const newNotification: Notification = {
+          id: `mock-${Date.now()}`,
+          user_id: profile.id,
+          title: 'New system notification',
+          message: 'This is a simulated real-time notification',
+          type: 'system',
+          read: false,
+          created_at: new Date().toISOString()
+        };
+        
+        setNotifications(prev => [newNotification, ...prev]);
+        setUnreadCount(prev => prev + 1);
+        
+        if (!open) {
+          toast({
+            title: newNotification.title,
+            description: newNotification.message,
+          });
+        }
+      }
+    }, 30000); // Every 30 seconds
+    
+    // In the future, when realtime is set up:
+    /*
+    if (profile?.id && notificationsAvailable) {
       const channel = supabase.channel('notification-changes')
         .on('postgres_changes', 
           { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
@@ -143,6 +211,9 @@ export const NotificationsModule = () => {
         supabase.removeChannel(channel);
       };
     }
+    */
+    
+    return () => clearInterval(interval);
   }, [profile?.id]);
 
   const getNotificationIcon = (type: string) => {

@@ -30,13 +30,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AuthProviderContent = ({ 
-  children, 
-  navigate 
-}: { 
+export const AuthProviderContent: React.FC<{ 
   children: React.ReactNode; 
   navigate: (path: string) => void;
-}) => {
+}> = ({ children, navigate }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);

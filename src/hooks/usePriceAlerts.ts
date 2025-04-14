@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface PriceAlert {
   id: string;
@@ -16,8 +16,34 @@ interface PriceAlert {
   updated_at: string;
 }
 
+// Mock data for development
+const MOCK_ALERTS: PriceAlert[] = [
+  {
+    id: 'mock-1',
+    user_id: '',  // Will be set dynamically
+    product_name: 'Organic Wheat',
+    product_id: 'product-123',
+    condition: 'above',
+    target_price: 4500,
+    status: 'active',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'mock-2',
+    user_id: '',  // Will be set dynamically
+    product_name: 'Premium Rice',
+    condition: 'below',
+    target_price: 3200,
+    status: 'active',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
 export const usePriceAlerts = () => {
   const { profile } = useAuth();
+  const { toast } = useToast();
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,7 +51,9 @@ export const usePriceAlerts = () => {
     try {
       if (!profile?.id) return;
       
-      // Use the correct object typing to avoid infinite type instantiation
+      // For development, use mock data
+      // When price_alerts table is created, uncomment this code
+      /*
       const { data, error } = await supabase
         .from('price_alerts')
         .select('*')
@@ -33,8 +61,16 @@ export const usePriceAlerts = () => {
 
       if (error) throw error;
       
-      // Use type assertion to convert to PriceAlert[]
-      setAlerts(data as unknown as PriceAlert[]);
+      setAlerts(data as PriceAlert[]);
+      */
+      
+      // Use mock data for now, but set the user_id to the current user's id
+      const mockData = MOCK_ALERTS.map(alert => ({
+        ...alert,
+        user_id: profile.id
+      }));
+      
+      setAlerts(mockData);
     } catch (error) {
       console.error('Error fetching price alerts:', error);
       toast({
@@ -51,6 +87,9 @@ export const usePriceAlerts = () => {
     try {
       if (!profile?.id) return null;
 
+      // For development, just add to local state
+      // When price_alerts table is created, uncomment this code
+      /*
       const { data, error } = await supabase
         .from('price_alerts')
         .insert({
@@ -66,8 +105,22 @@ export const usePriceAlerts = () => {
 
       if (error) throw error;
       
-      // Use type assertion
-      const newAlert = data as unknown as PriceAlert;
+      const newAlert = data as PriceAlert;
+      */
+      
+      // Mock implementation for now
+      const newAlert: PriceAlert = {
+        id: `mock-${Date.now()}`,
+        user_id: profile.id,
+        product_name: alertData.product_name,
+        product_id: alertData.product_id,
+        condition: alertData.condition,
+        target_price: alertData.target_price,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      
       setAlerts((prev) => [...prev, newAlert]);
       
       toast({
@@ -89,6 +142,9 @@ export const usePriceAlerts = () => {
 
   const updateAlert = async (id: string, updates: Partial<Omit<PriceAlert, 'id' | 'user_id' | 'created_at' | 'updated_at'>>) => {
     try {
+      // For development, just update local state
+      // When price_alerts table is created, uncomment this code
+      /*
       const { data, error } = await supabase
         .from('price_alerts')
         .update(updates)
@@ -98,11 +154,20 @@ export const usePriceAlerts = () => {
 
       if (error) throw error;
       
-      // Use type assertion
-      const updatedAlert = data as unknown as PriceAlert;
+      const updatedAlert = data as PriceAlert;
+      */
       
+      // Mock implementation for now
       setAlerts((prev) =>
-        prev.map((alert) => (alert.id === id ? updatedAlert : alert))
+        prev.map((alert) => 
+          alert.id === id 
+            ? { 
+                ...alert, 
+                ...updates, 
+                updated_at: new Date().toISOString() 
+              } 
+            : alert
+        )
       );
       
       toast({
@@ -124,12 +189,16 @@ export const usePriceAlerts = () => {
 
   const deleteAlert = async (id: string) => {
     try {
+      // For development, just remove from local state
+      // When price_alerts table is created, uncomment this code
+      /*
       const { error } = await supabase
         .from('price_alerts')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+      */
       
       setAlerts((prev) => prev.filter((alert) => alert.id !== id));
       
