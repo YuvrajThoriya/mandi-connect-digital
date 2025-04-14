@@ -1,14 +1,19 @@
+import { PostgrestError } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 
-import { PostgrestError, PostgrestResponse } from "@supabase/supabase-js";
-import { safeTable } from "@/integrations/supabase/client";
-
-// Generic type for handling data safely from Supabase queries
 export type SafeQueryResult<T> = {
   data: T[] | null;
-  error: PostgrestError | null;
+  error: PostgrestErrorWithName | null;
 };
 
-// Helper function to safely query any table
+export type PostgrestErrorWithName = PostgrestError & {
+  name?: string;
+};
+
+export const safeTable = <T = any>(tableName: string) => {
+  return supabase.from(tableName as any);
+};
+
 export const queryTable = async <T>(
   tableName: string,
   queryFn: (table: any) => any
@@ -18,7 +23,7 @@ export const queryTable = async <T>(
     const response = await queryFn(table);
     return {
       data: response.data as T[] | null,
-      error: response.error
+      error: response.error ? { ...response.error, name: 'QueryError' } : null
     };
   } catch (err) {
     console.error(`Error querying table ${tableName}:`, err);
@@ -26,15 +31,15 @@ export const queryTable = async <T>(
       data: null,
       error: {
         message: `Error querying table ${tableName}`,
-        details: "",
-        hint: "",
-        code: ""
+        details: '',
+        hint: '',
+        code: '',
+        name: 'QueryError'
       }
     };
   }
 };
 
-// Helper to safely insert data into any table
 export const insertIntoTable = async <T>(
   tableName: string,
   data: any,
@@ -45,7 +50,7 @@ export const insertIntoTable = async <T>(
     const response = await table.insert(data, options);
     return {
       data: response.data as T[] | null,
-      error: response.error
+      error: response.error ? { ...response.error, name: 'InsertError' } : null
     };
   } catch (err) {
     console.error(`Error inserting into table ${tableName}:`, err);
@@ -53,15 +58,15 @@ export const insertIntoTable = async <T>(
       data: null,
       error: {
         message: `Error inserting into table ${tableName}`,
-        details: "",
-        hint: "",
-        code: ""
+        details: '',
+        hint: '',
+        code: '',
+        name: 'InsertError'
       }
     };
   }
 };
 
-// Helper to safely update data in any table
 export const updateTable = async <T>(
   tableName: string,
   data: any,
@@ -74,7 +79,7 @@ export const updateTable = async <T>(
     const response = await table.update(data, options).eq(matchColumn, matchValue);
     return {
       data: response.data as T[] | null,
-      error: response.error
+      error: response.error ? { ...response.error, name: 'UpdateError' } : null
     };
   } catch (err) {
     console.error(`Error updating table ${tableName}:`, err);
@@ -82,15 +87,15 @@ export const updateTable = async <T>(
       data: null,
       error: {
         message: `Error updating table ${tableName}`,
-        details: "",
-        hint: "",
-        code: ""
+        details: '',
+        hint: '',
+        code: '',
+        name: 'UpdateError'
       }
     };
   }
 };
 
-// Helper to safely delete data from any table
 export const deleteFromTable = async <T>(
   tableName: string,
   matchColumn: string,
@@ -102,7 +107,7 @@ export const deleteFromTable = async <T>(
     const response = await table.delete(options).eq(matchColumn, matchValue);
     return {
       data: response.data as T[] | null,
-      error: response.error
+      error: response.error ? { ...response.error, name: 'DeleteError' } : null
     };
   } catch (err) {
     console.error(`Error deleting from table ${tableName}:`, err);
@@ -110,15 +115,15 @@ export const deleteFromTable = async <T>(
       data: null,
       error: {
         message: `Error deleting from table ${tableName}`,
-        details: "",
-        hint: "",
-        code: ""
+        details: '',
+        hint: '',
+        code: '',
+        name: 'DeleteError'
       }
     };
   }
 };
 
-// Type guard to check if an object has a specific property
 export function hasProperty<T extends object, K extends PropertyKey>(
   obj: T, 
   prop: K
@@ -126,7 +131,6 @@ export function hasProperty<T extends object, K extends PropertyKey>(
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-// Safely handle relations that might have errors
 export function ensureObjectWithProperty<T extends object, K extends PropertyKey>(
   obj: any,
   prop: K,
@@ -137,3 +141,8 @@ export function ensureObjectWithProperty<T extends object, K extends PropertyKey
   }
   return defaultValue as T & Record<K, unknown>;
 }
+
+export const getCategories = async () => {
+  const { data, error } = await queryTable('categories', table => table.select('*'));
+  return { data, error };
+};
