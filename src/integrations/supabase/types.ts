@@ -248,39 +248,6 @@ export type Database = {
         }
         Relationships: []
       }
-      dashboard_metrics: {
-        Row: {
-          created_at: string | null
-          date: string
-          id: string
-          metric_type: string
-          period: string
-          updated_at: string | null
-          user_id: string
-          value: number
-        }
-        Insert: {
-          created_at?: string | null
-          date: string
-          id?: string
-          metric_type: string
-          period: string
-          updated_at?: string | null
-          user_id: string
-          value: number
-        }
-        Update: {
-          created_at?: string | null
-          date?: string
-          id?: string
-          metric_type?: string
-          period?: string
-          updated_at?: string | null
-          user_id?: string
-          value?: number
-        }
-        Relationships: []
-      }
       farm_details: {
         Row: {
           created_at: string | null
@@ -412,50 +379,6 @@ export type Database = {
           },
         ]
       }
-      payments: {
-        Row: {
-          amount: number
-          created_at: string | null
-          id: string
-          order_id: string
-          payment_date: string | null
-          payment_method: string
-          status: string
-          transaction_id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          amount: number
-          created_at?: string | null
-          id?: string
-          order_id: string
-          payment_date?: string | null
-          payment_method: string
-          status?: string
-          transaction_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          amount?: number
-          created_at?: string | null
-          id?: string
-          order_id?: string
-          payment_date?: string | null
-          payment_method?: string
-          status?: string
-          transaction_id?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payments_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       products: {
         Row: {
           additional_images: string[] | null
@@ -575,77 +498,6 @@ export type Database = {
           role?: string
           state?: string | null
           updated_at?: string
-        }
-        Relationships: []
-      }
-      reviews: {
-        Row: {
-          comment: string | null
-          created_at: string | null
-          id: string
-          order_id: string
-          rating: number
-          reviewed_id: string
-          reviewer_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          comment?: string | null
-          created_at?: string | null
-          id?: string
-          order_id: string
-          rating: number
-          reviewed_id: string
-          reviewer_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          comment?: string | null
-          created_at?: string | null
-          id?: string
-          order_id?: string
-          rating?: number
-          reviewed_id?: string
-          reviewer_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reviews_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_preferences: {
-        Row: {
-          compact_view: boolean | null
-          created_at: string | null
-          dark_mode: boolean | null
-          id: string
-          two_factor_auth: boolean | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          compact_view?: boolean | null
-          created_at?: string | null
-          dark_mode?: boolean | null
-          id?: string
-          two_factor_auth?: boolean | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          compact_view?: boolean | null
-          created_at?: string | null
-          dark_mode?: boolean | null
-          id?: string
-          two_factor_auth?: boolean | null
-          updated_at?: string | null
-          user_id?: string
         }
         Relationships: []
       }

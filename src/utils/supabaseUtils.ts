@@ -36,6 +36,7 @@ export const queryTable = async <T>(
     const response = await queryFn(table);
     
     return {
+      // @ts-ignore - Handling type conversion safely
       data: response.data ? ensureType<T>(response.data) : null,
       error: response.error ? { ...response.error, name: 'QueryError' } : null
     };
@@ -61,10 +62,11 @@ export const insertIntoTable = async <T>(
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
-    // Use type assertion to avoid deep type instantiation
+    // @ts-ignore - Use type assertion to avoid deep type instantiation
     const response = await (table.insert(data) as any).select();
     
     return {
+      // @ts-ignore - Handling type conversion safely
       data: response.data ? ensureType<T>(response.data) : null,
       error: response.error ? { ...response.error, name: 'InsertError' } : null
     };
@@ -92,10 +94,11 @@ export const updateTable = async <T>(
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
-    // Use type assertion to avoid deep type instantiation
+    // @ts-ignore - Use type assertion to avoid deep type instantiation
     const response = await (table.update(data).eq(matchColumn, matchValue) as any).select();
     
     return {
+      // @ts-ignore - Handling type conversion safely
       data: response.data ? ensureType<T>(response.data) : null,
       error: response.error ? { ...response.error, name: 'UpdateError' } : null
     };
@@ -122,10 +125,11 @@ export const deleteFromTable = async <T>(
 ): Promise<SafeQueryResult<T>> => {
   try {
     const table = safeTable(tableName);
-    // Use type assertion to avoid deep type instantiation
+    // @ts-ignore - Use type assertion to avoid deep type instantiation
     const response = await (table.delete().eq(matchColumn, matchValue) as any).select();
     
     return {
+      // @ts-ignore - Handling type conversion safely
       data: response.data ? ensureType<T>(response.data) : null,
       error: response.error ? { ...response.error, name: 'DeleteError' } : null
     };

@@ -1,50 +1,317 @@
 
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import AuthForm from "@/components/auth/AuthForm";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { LogIn, UserPlus, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+
+interface AuthFormData {
+  email: string;
+  password: string;
+  name?: string;
+  phone?: string;
+  role?: string;
+}
 
 const Auth = () => {
+  const { setSession, setUser, setProfile } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { user, profile, loading } = useAuth();
-  const [checkingAuth, setCheckingAuth] = useState(true);
 
-  useEffect(() => {
-    // Don't redirect immediately to give auth context time to initialize
-    const checkAuth = async () => {
-      try {
-        // Don't redirect if we're still loading
-        if (loading) return;
+  const [formData, setFormData] = useState<AuthFormData>({
+    email: "",
+    password: "",
+    name: "",
+    phone: "",
+    role: "farmer"
+  });
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("login");
 
-        if (user) {
-          // User is authenticated, redirect based on role
-          const redirectPath = profile?.role === 'farmer' ? '/farmer-dashboard' : '/trader-dashboard';
-          navigate(redirectPath);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleRoleChange = (value: string) => {
+    setFormData({
+      ...formData,
+      role: value
+    });
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (error) throw error;
+
+      if (data?.session) {
+        setSession(data.session);
+        setUser(data.user || null);
+        
+        // Fetch the user's profile data
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user?.id)
+          .single();
+        
+        if (profileData) {
+          setProfile(profileData);
         }
-      } finally {
-        setCheckingAuth(false);
+        
+        toast({
+          title: "Login successful",
+          description: "Welcome back!",
+        });
+
+        navigate('/');
       }
-    };
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "An error occurred during login.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    checkAuth();
-  }, [user, profile, navigate, loading]);
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
 
-  // Show loading spinner while checking auth
-  if (loading || checkingAuth) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted/40">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
+    if (!formData.name || !formData.role) {
+      toast({
+        title: "Signup failed",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+            phone: formData.phone || "",
+            role: formData.role,
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.user) {
+        toast({
+          title: "Signup successful",
+          description: "Your account has been created. Please check your email for verification.",
+        });
+
+        // Auto login after signup
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (signInError) throw signInError;
+
+        if (signInData?.session) {
+          setSession(signInData.session);
+          setUser(signInData.user || null);
+          
+          // Fetch the user's profile data
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', signInData.user?.id)
+            .single();
+          
+          if (profileData) {
+            setProfile(profileData);
+          }
+          
+          navigate('/');
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "Signup failed",
+        description: error.message || "An error occurred during signup.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted/40">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-md">
-        <AuthForm />
+        <Card className="w-full">
+          <CardHeader className="space-y-1 text-center">
+            <CardTitle className="text-2xl font-bold">AgriConnect</CardTitle>
+            <CardDescription>
+              Connect farmers and traders directly
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-8">
+                <TabsTrigger value="login">Login</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="login">
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email-login">Email</Label>
+                    <Input
+                      id="email-login"
+                      name="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password-login">Password</Label>
+                      <Button variant="link" className="p-0 text-sm" type="button" onClick={() => toast({ title: "Reset password", description: "Feature coming soon!" })}>
+                        Forgot password?
+                      </Button>
+                    </div>
+                    <Input
+                      id="password-login"
+                      name="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={formData.password}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Logging in...
+                      </>
+                    ) : (
+                      <>
+                        <LogIn className="mr-2 h-4 w-4" />
+                        Login
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+              
+              <TabsContent value="signup">
+                <form onSubmit={handleSignup} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name-signup">Full Name</Label>
+                    <Input
+                      id="name-signup"
+                      name="name"
+                      placeholder="John Doe"
+                      value={formData.name}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email-signup">Email</Label>
+                    <Input
+                      id="email-signup"
+                      name="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone-signup">Phone Number</Label>
+                    <Input
+                      id="phone-signup"
+                      name="phone"
+                      type="tel"
+                      placeholder="+1234567890"
+                      value={formData.phone}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role-signup">I am a</Label>
+                    <Select value={formData.role} onValueChange={handleRoleChange} required>
+                      <SelectTrigger id="role-signup">
+                        <SelectValue placeholder="Select your role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="farmer">Farmer</SelectItem>
+                        <SelectItem value="trader">Trader</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password-signup">Password</Label>
+                    <Input
+                      id="password-signup"
+                      name="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={formData.password}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating account...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Create Account
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+          <CardFooter className="text-center text-sm text-muted-foreground">
+            By continuing, you agree to our Terms of Service and Privacy Policy.
+          </CardFooter>
+        </Card>
       </div>
     </div>
   );

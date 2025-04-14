@@ -1,6 +1,5 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Type-safe wrapper for generic operations on tables that may not exist yet

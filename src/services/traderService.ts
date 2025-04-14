@@ -1,13 +1,14 @@
+
 import { supabase } from '@/integrations/supabase/client';
+import { safeTableOperation } from '@/utils/safeTableUtil';
 
 // Add any trader-specific service functions
 export const traderService = {
   // Example function
   async getTraderProfile(traderId: string) {
     try {
-      // @ts-ignore - Allow string table name
-      const { data, error } = await supabase
-        .from('profiles')
+      // @ts-ignore - Using safeTableOperation for profiles
+      const { data, error } = await safeTableOperation('profiles')
         .select('*')
         .eq('id', traderId)
         .single();

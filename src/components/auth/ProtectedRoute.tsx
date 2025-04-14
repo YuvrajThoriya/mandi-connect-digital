@@ -1,38 +1,43 @@
 
-import { ReactNode, useEffect } from "react";
-import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
-import { Loader2 } from "lucide-react";
+import React, { useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
-  children: ReactNode;
-  requiredRole?: "farmer" | "trader";
+  children: React.ReactNode;
+  allowedRoles?: string[];
 }
 
-const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  allowedRoles = [],
+}) => {
   const { user, profile, loading } = useAuth();
-  const location = useLocation();
 
-  // Show loading spinner while checking auth status
+  // Show loading state while authentication is being checked
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-lg text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }
 
-  // If not authenticated, redirect to login
+  // If user is not authenticated, redirect to login page
   if (!user) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
+    return <Navigate to="/auth" replace />;
   }
 
-  // If role is required but doesn't match, redirect to appropriate dashboard
-  if (requiredRole && profile?.role !== requiredRole) {
-    const redirectPath = profile?.role === "farmer" ? "/farmer-dashboard" : "/trader-dashboard";
-    return <Navigate to={redirectPath} replace />;
+  // If specific roles are required and user doesn't have one of them, redirect to home
+  if (allowedRoles.length > 0 && profile?.role && !allowedRoles.includes(profile.role)) {
+    return <Navigate to="/" replace />;
   }
 
+  // If user is authenticated and has the required role (or no specific role is required), render children
   return <>{children}</>;
 };
 

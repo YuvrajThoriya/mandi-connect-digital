@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { Order, CreateOrderDto, UpdateOrderDto } from '../types/order';
+import { safeTableOperation } from '@/utils/safeTableUtil';
 
 export const orderService = {
   async createOrder(orderData: CreateOrderDto): Promise<Order | null> {
@@ -9,6 +10,7 @@ export const orderService = {
       const totalAmount = orderData.quantity * orderData.price;
       
       // Get the farmer_id from the product
+      // @ts-ignore - Allow string tableName
       const { data: productData } = await supabase
         .from('products')
         .select('farmer_id')
@@ -22,8 +24,8 @@ export const orderService = {
       const userResponse = await supabase.auth.getUser();
       const userId = userResponse.data.user?.id || '';
       
-      // @ts-ignore - We're intentionally allowing dynamic table operations
-      const { data, error } = await supabase.from('orders')
+      // @ts-ignore - Using safeTableOperation for orders
+      const { data, error } = await safeTableOperation<Order>('orders')
         .insert({
           product_id: orderData.product_id,
           quantity: orderData.quantity,
@@ -49,8 +51,8 @@ export const orderService = {
 
   async getOrderById(id: string): Promise<Order | null> {
     try {
-      // @ts-ignore - We're intentionally allowing dynamic table operations
-      const { data, error } = await supabase.from('orders')
+      // @ts-ignore - Using safeTableOperation for orders
+      const { data, error } = await safeTableOperation<Order>('orders')
         .select('*')
         .eq('id', id)
         .single();
@@ -65,8 +67,8 @@ export const orderService = {
 
   async getFarmerOrders(farmerId: string): Promise<Order[]> {
     try {
-      // @ts-ignore - We're intentionally allowing dynamic table operations
-      const { data, error } = await supabase.from('orders')
+      // @ts-ignore - Using safeTableOperation for orders
+      const { data, error } = await safeTableOperation<Order>('orders')
         .select('*')
         .eq('farmer_id', farmerId)
         .order('created_at', { ascending: false });
@@ -81,8 +83,8 @@ export const orderService = {
 
   async getTraderOrders(traderId: string): Promise<Order[]> {
     try {
-      // @ts-ignore - We're intentionally allowing dynamic table operations
-      const { data, error } = await supabase.from('orders')
+      // @ts-ignore - Using safeTableOperation for orders
+      const { data, error } = await safeTableOperation<Order>('orders')
         .select('*')
         .eq('trader_id', traderId)
         .order('created_at', { ascending: false });
@@ -97,8 +99,8 @@ export const orderService = {
 
   async updateOrder(id: string, updates: UpdateOrderDto): Promise<Order | null> {
     try {
-      // @ts-ignore - We're intentionally allowing dynamic table operations
-      const { data, error } = await supabase.from('orders')
+      // @ts-ignore - Using safeTableOperation for orders
+      const { data, error } = await safeTableOperation<Order>('orders')
         .update(updates)
         .eq('id', id)
         .select()
@@ -114,8 +116,8 @@ export const orderService = {
 
   async deleteOrder(id: string): Promise<boolean> {
     try {
-      // @ts-ignore - We're intentionally allowing dynamic table operations
-      const { error } = await supabase.from('orders')
+      // @ts-ignore - Using safeTableOperation for orders
+      const { error } = await safeTableOperation('orders')
         .delete()
         .eq('id', id);
 
@@ -129,8 +131,8 @@ export const orderService = {
 
   async updateOrderStatus(id: string, status: string): Promise<Order | null> {
     try {
-      // @ts-ignore - We're intentionally allowing dynamic table operations
-      const { data, error } = await supabase.from('orders')
+      // @ts-ignore - Using safeTableOperation for orders
+      const { data, error } = await safeTableOperation<Order>('orders')
         .update({ status })
         .eq('id', id)
         .select()
@@ -146,8 +148,8 @@ export const orderService = {
 
   async updatePaymentStatus(id: string, paymentStatus: string): Promise<Order | null> {
     try {
-      // @ts-ignore - We're intentionally allowing dynamic table operations
-      const { data, error } = await supabase.from('orders')
+      // @ts-ignore - Using safeTableOperation for orders
+      const { data, error } = await safeTableOperation<Order>('orders')
         .update({ payment_status: paymentStatus })
         .eq('id', id)
         .select()
