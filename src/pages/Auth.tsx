@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn, UserPlus, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface AuthFormData {
   email: string;
@@ -21,7 +20,7 @@ interface AuthFormData {
 }
 
 const Auth = () => {
-  const { setSession, setUser, setProfile } = useAuth();
+  const { user, signIn, signUp } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -35,6 +34,14 @@ const Auth = () => {
   
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("login");
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (user) {
+      const role = user.user_metadata?.role || "farmer";
+      navigate(`/${role}/dashboard`);
+    }
+  }, [user, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -55,35 +62,14 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
+      await signIn(formData.email, formData.password);
+      
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
       });
 
-      if (error) throw error;
-
-      if (data?.session) {
-        setSession(data.session);
-        setUser(data.user || null);
-        
-        // Fetch the user's profile data
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user?.id)
-          .single();
-        
-        if (profileData) {
-          setProfile(profileData);
-        }
-        
-        toast({
-          title: "Login successful",
-          description: "Welcome back!",
-        });
-
-        navigate('/');
-      }
+      // Navigate based on role - this is handled by the useEffect above
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -110,52 +96,15 @@ const Auth = () => {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            name: formData.name,
-            phone: formData.phone || "",
-            role: formData.role,
-          }
-        }
+      await signUp(formData.email, formData.password, formData.name, formData.role, formData.phone);
+      
+      toast({
+        title: "Signup successful",
+        description: "Your account has been created. Please check your email for verification.",
       });
 
-      if (error) throw error;
-
-      if (data?.user) {
-        toast({
-          title: "Signup successful",
-          description: "Your account has been created. Please check your email for verification.",
-        });
-
-        // Auto login after signup
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
-
-        if (signInError) throw signInError;
-
-        if (signInData?.session) {
-          setSession(signInData.session);
-          setUser(signInData.user || null);
-          
-          // Fetch the user's profile data
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', signInData.user?.id)
-            .single();
-          
-          if (profileData) {
-            setProfile(profileData);
-          }
-          
-          navigate('/');
-        }
-      }
+      // Auto switch to login tab
+      setActiveTab("login");
     } catch (error: any) {
       toast({
         title: "Signup failed",

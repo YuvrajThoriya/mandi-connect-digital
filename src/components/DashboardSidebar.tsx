@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -58,20 +59,25 @@ const DashboardSidebar = ({ userRole }: SidebarProps) => {
   };
 
   const farmerMenuItems = [
-    { title: "Dashboard", url: "/farmer-dashboard", icon: Home },
-    { title: "My Products", url: "/farmer-products", icon: Package },
-    { title: "My Auctions", url: "/farmer-auctions", icon: Gavel },
-    { title: "Orders", url: "/farmer-orders", icon: ShoppingCart },
-    { title: "Appointments", url: "/farmer-appointments", icon: Calendar },
+    { title: "Dashboard", url: "/farmer/dashboard", icon: Home },
+    { title: "My Products", url: "/farmer/products", icon: Package },
+    { title: "My Auctions", url: "/farmer/auctions", icon: Gavel },
+    { title: "Orders", url: "/farmer/orders", icon: ShoppingCart },
+    { title: "Appointments", url: "/farmer/appointments", icon: Calendar },
+    { title: "Reports", url: "/farmer/reports", icon: BarChart3 },
+    { title: "Profile", url: "/farmer/profile", icon: UserCircle },
+    { title: "Settings", url: "/farmer/settings", icon: Settings },
   ];
 
   const traderMenuItems = [
-    { title: "Dashboard", url: "/trader-dashboard", icon: Home },
-    { title: "Market", url: "/trader-market", icon: Package },
-    { title: "Auctions", url: "/trader-auctions", icon: Gavel },
-    { title: "My Bids", url: "/trader-bids", icon: PieChart },
-    { title: "Orders", url: "/trader-orders", icon: ShoppingCart },
-    { title: "Appointments", url: "/trader-appointments", icon: Calendar },
+    { title: "Dashboard", url: "/trader/dashboard", icon: Home },
+    { title: "Market", url: "/trader/market", icon: Package },
+    { title: "Auctions", url: "/trader/auctions", icon: Gavel },
+    { title: "My Bids", url: "/trader/bids", icon: PieChart },
+    { title: "Orders", url: "/trader/orders", icon: ShoppingCart },
+    { title: "Appointments", url: "/trader/appointments", icon: Calendar },
+    { title: "Profile", url: "/trader/profile", icon: UserCircle },
+    { title: "Settings", url: "/trader/settings", icon: Settings },
   ];
 
   const menuItems = userRole === "farmer" ? farmerMenuItems : traderMenuItems;

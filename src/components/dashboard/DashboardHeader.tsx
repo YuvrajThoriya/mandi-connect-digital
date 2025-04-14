@@ -62,11 +62,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ title, userName, user
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate(`/${userRole}-profile`)}>
+            <DropdownMenuItem onClick={() => navigate(`/${userRole}/profile`)}>
               <UserCircle className="mr-2 h-4 w-4" />
               <span>My Profile</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate('/settings')}>
+            <DropdownMenuItem onClick={() => navigate(`/${userRole}/settings`)}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
             </DropdownMenuItem>

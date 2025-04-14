@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
@@ -14,6 +14,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   allowedRoles = [],
 }) => {
   const { user, profile, loading } = useAuth();
+  const location = useLocation();
 
   // Show loading state while authentication is being checked
   if (loading) {
@@ -29,12 +30,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // If user is not authenticated, redirect to login page
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/auth" state={{ from: location.pathname }} replace />;
   }
 
-  // If specific roles are required and user doesn't have one of them, redirect to home
+  // If specific roles are required and user doesn't have one of them, redirect to appropriate dashboard
   if (allowedRoles.length > 0 && profile?.role && !allowedRoles.includes(profile.role)) {
-    return <Navigate to="/" replace />;
+    const redirectPath = `/${profile.role}/dashboard`;
+    return <Navigate to={redirectPath} replace />;
   }
 
   // If user is authenticated and has the required role (or no specific role is required), render children

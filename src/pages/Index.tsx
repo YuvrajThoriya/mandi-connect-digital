@@ -1,27 +1,33 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 
 const Index = () => {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, loading } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect authenticated users to their dashboard
+  useEffect(() => {
+    if (user && profile && !loading) {
+      const dashboardPath = `/${profile.role}/dashboard`;
+      navigate(dashboardPath);
+    }
+  }, [user, profile, loading, navigate]);
 
   const handleLoginClick = () => {
     navigate("/auth");
   };
 
   const handleDashboardClick = () => {
-    if (profile?.role === "farmer") {
-      navigate("/farmer/dashboard");
-    } else if (profile?.role === "trader") {
-      navigate("/trader/dashboard");
+    if (profile?.role) {
+      navigate(`/${profile.role}/dashboard`);
     }
   };
 
-  const handleLogoutClick = () => {
-    signOut();
+  const handleLogoutClick = async () => {
+    await signOut();
   };
 
   return (
